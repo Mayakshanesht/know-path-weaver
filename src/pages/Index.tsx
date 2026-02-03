@@ -1,21 +1,21 @@
 import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/layout/Footer';
-import HeroSection from '@/components/landing/HeroSection';
-import FeaturesSection from '@/components/landing/FeaturesSection';
-import HowItWorksSection from '@/components/landing/HowItWorksSection';
-import CTASection from '@/components/landing/CTASection';
+import MarketingHero from '@/components/marketing/MarketingHero';
+import DomainsSection from '@/components/marketing/DomainsSection';
+import CoursesSection from '@/components/marketing/CoursesSection';
+import CreatorCTA from '@/components/marketing/CreatorCTA';
+import MarketingFooter from '@/components/marketing/MarketingFooter';
 
 export default function Index() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-1">
-        <HeroSection />
-        <FeaturesSection />
-        <HowItWorksSection />
-        <CTASection />
+        <MarketingHero />
+        <DomainsSection />
+        <CoursesSection />
+        <CreatorCTA />
       </main>
-      <Footer />
+      <MarketingFooter />
     </div>
   );
 }
