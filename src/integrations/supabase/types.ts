@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      capsule_content: {
+        Row: {
+          capsule_id: string
+          content_type: Database["public"]["Enums"]["content_type"]
+          content_value: string
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json | null
+          order_index: number
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          capsule_id: string
+          content_type: Database["public"]["Enums"]["content_type"]
+          content_value: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          order_index?: number
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          capsule_id?: string
+          content_type?: Database["public"]["Enums"]["content_type"]
+          content_value?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          order_index?: number
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capsule_content_capsule_id_fkey"
+            columns: ["capsule_id"]
+            isOneToOne: false
+            referencedRelation: "capsules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       capsule_prerequisites: {
         Row: {
           capsule_id: string
@@ -331,6 +378,15 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "student"
+      content_type:
+        | "google_drive"
+        | "youtube"
+        | "github"
+        | "colab"
+        | "weblink"
+        | "text"
+        | "image"
+        | "pdf"
       enrollment_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
@@ -460,6 +516,16 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "student"],
+      content_type: [
+        "google_drive",
+        "youtube",
+        "github",
+        "colab",
+        "weblink",
+        "text",
+        "image",
+        "pdf",
+      ],
       enrollment_status: ["pending", "approved", "rejected"],
     },
   },
