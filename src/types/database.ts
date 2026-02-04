@@ -56,6 +56,22 @@ export interface Capsule {
   updated_at: string;
 }
 
+// Content types for capsules
+export type ContentType = 'google_drive' | 'youtube' | 'github' | 'colab' | 'weblink' | 'text' | 'image' | 'pdf';
+
+export interface CapsuleContent {
+  id: string;
+  capsule_id: string;
+  content_type: ContentType;
+  title: string | null;
+  content_value: string;
+  description: string | null;
+  order_index: number;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CapsulePrerequisite {
   id: string;
   capsule_id: string;
@@ -98,6 +114,10 @@ export interface CapsuleWithProgress extends Capsule {
   progress?: Progress | null;
   is_locked: boolean;
   prerequisites?: Capsule[];
+}
+
+export interface CapsuleWithContent extends Capsule {
+  capsule_content: CapsuleContent[];
 }
 
 export interface EnrollmentWithCourse extends Enrollment {

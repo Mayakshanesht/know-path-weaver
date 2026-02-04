@@ -577,12 +577,34 @@ function LearningPathCard({
 function CapsuleRow({ capsule, onRefresh }: { capsule: Capsule; onRefresh: () => void }) {
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
+  const [contentOpen, setContentOpen] = useState(false);
+  const [capsuleContent, setCapsuleContent] = useState<any[]>([]);
+  const [loadingContent, setLoadingContent] = useState(false);
   const [editData, setEditData] = useState({
     title: capsule.title,
     description: capsule.description || '',
     drive_file_id: capsule.drive_file_id || '',
     duration_minutes: capsule.duration_minutes || 0,
   });
+
+  const fetchCapsuleContent = async () => {
+    setLoadingContent(true);
+    const { data, error } = await supabase
+      .from('capsule_content')
+      .select('*')
+      .eq('capsule_id', capsule.id)
+      .order('order_index');
+    
+    if (!error && data) {
+      setCapsuleContent(data);
+    }
+    setLoadingContent(false);
+  };
+
+  const handleOpenContent = async () => {
+    await fetchCapsuleContent();
+    setContentOpen(true);
+  };
 
   const handleSave = async () => {
     const { error } = await supabase.from('capsules').update(editData).eq('id', capsule.id);
@@ -608,51 +630,75 @@ function CapsuleRow({ capsule, onRefresh }: { capsule: Capsule; onRefresh: () =>
     }
   };
 
+  // Dynamically import the content manager to avoid circular deps
+  const CapsuleContentManager = require('./CapsuleContentManager').default;
+
   return (
-    <div className="flex items-center gap-2 bg-background/50 rounded p-2">
-      <GripVertical className="w-4 h-4 text-muted-foreground cursor-move flex-shrink-0" />
-      
-      {editing ? (
-        <div className="flex-1 space-y-2">
-          <Input
-            value={editData.title}
-            onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-            placeholder="Title"
-            className="h-8 text-sm"
-          />
-          <Input
-            value={editData.drive_file_id}
-            onChange={(e) => setEditData({ ...editData, drive_file_id: e.target.value })}
-            placeholder="Google Drive File ID"
-            className="h-8 text-sm"
-          />
-          <div className="flex gap-2">
+    <>
+      <div className="flex items-center gap-2 bg-background/50 rounded p-2">
+        <GripVertical className="w-4 h-4 text-muted-foreground cursor-move flex-shrink-0" />
+        
+        {editing ? (
+          <div className="flex-1 space-y-2">
             <Input
-              type="number"
-              value={editData.duration_minutes}
-              onChange={(e) => setEditData({ ...editData, duration_minutes: Number(e.target.value) })}
-              placeholder="Duration (min)"
-              className="h-8 text-sm w-32"
+              value={editData.title}
+              onChange={(e) => setEditData({ ...editData, title: e.target.value })}
+              placeholder="Title"
+              className="h-8 text-sm"
             />
-            <Button size="sm" onClick={handleSave}>Save</Button>
-            <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+            <Input
+              value={editData.drive_file_id}
+              onChange={(e) => setEditData({ ...editData, drive_file_id: e.target.value })}
+              placeholder="Google Drive File ID (legacy)"
+              className="h-8 text-sm"
+            />
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                value={editData.duration_minutes}
+                onChange={(e) => setEditData({ ...editData, duration_minutes: Number(e.target.value) })}
+                placeholder="Duration (min)"
+                className="h-8 text-sm w-32"
+              />
+              <Button size="sm" onClick={handleSave}>Save</Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+            </div>
           </div>
-        </div>
-      ) : (
-        <>
-          <span className="flex-1 text-sm">{capsule.title}</span>
-          {capsule.drive_file_id && <Badge variant="outline" className="text-xs">Video</Badge>}
-          {capsule.duration_minutes && (
-            <span className="text-xs text-muted-foreground">{capsule.duration_minutes}m</span>
-          )}
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(true)}>
-            <Edit className="w-3 h-3" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleDelete}>
-            <Trash2 className="w-3 h-3 text-destructive" />
-          </Button>
-        </>
-      )}
-    </div>
+        ) : (
+          <>
+            <span className="flex-1 text-sm">{capsule.title}</span>
+            {capsule.drive_file_id && <Badge variant="outline" className="text-xs">Legacy Video</Badge>}
+            {capsule.duration_minutes && (
+              <span className="text-xs text-muted-foreground">{capsule.duration_minutes}m</span>
+            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-6 text-xs"
+              onClick={handleOpenContent}
+            >
+              Content
+            </Button>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(true)}>
+              <Edit className="w-3 h-3" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleDelete}>
+              <Trash2 className="w-3 h-3 text-destructive" />
+            </Button>
+          </>
+        )}
+      </div>
+
+      <CapsuleContentManager
+        capsuleId={capsule.id}
+        content={capsuleContent}
+        onRefresh={() => {
+          fetchCapsuleContent();
+          onRefresh();
+        }}
+        open={contentOpen}
+        onOpenChange={setContentOpen}
+      />
+    </>
   );
 }
