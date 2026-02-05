@@ -120,6 +120,62 @@ export interface CapsuleWithContent extends Capsule {
   capsule_content: CapsuleContent[];
 }
 
+// Quiz types
+export type QuestionType = 'mcq' | 'short_answer' | 'true_false' | 'multiple_select';
+export type QuizType = 'quiz' | 'assignment';
+
+export interface Quiz {
+  id: string;
+  course_id: string;
+  capsule_id: string | null;
+  title: string;
+  description: string | null;
+  quiz_type: QuizType;
+  is_graded: boolean | null;
+  passing_score: number | null;
+  time_limit_minutes: number | null;
+  max_attempts: number | null;
+  order_index: number;
+  is_published: boolean | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  quiz_id: string;
+  question_type: QuestionType;
+  question_text: string;
+  options: Record<string, unknown> | null;
+  correct_answer: Record<string, unknown>;
+  explanation: string | null;
+  points: number | null;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuizAttempt {
+  id: string;
+  quiz_id: string;
+  user_id: string;
+  started_at: string;
+  completed_at: string | null;
+  score: number | null;
+  max_score: number | null;
+  passed: boolean | null;
+  answers: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface QuizWithQuestions extends Quiz {
+  quiz_questions: QuizQuestion[];
+}
+
+export interface QuizWithCourse extends Quiz {
+  courses: Course;
+}
+
 export interface EnrollmentWithCourse extends Enrollment {
   courses: Course;
 }
