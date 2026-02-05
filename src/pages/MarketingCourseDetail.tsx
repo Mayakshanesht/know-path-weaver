@@ -420,8 +420,8 @@ export default function MarketingCourseDetail() {
 
                   {enrollmentStatus === 'approved' ? (
                     <div className="space-y-4">
-                      <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
-                        <div className="flex items-center gap-2 text-green-600 mb-2">
+                      <div className="p-4 bg-success/10 border border-success/30 rounded-lg">
+                        <div className="flex items-center gap-2 text-success mb-2">
                           <CheckCircle2 className="w-5 h-5" />
                           <span className="font-semibold">Enrolled</span>
                         </div>
