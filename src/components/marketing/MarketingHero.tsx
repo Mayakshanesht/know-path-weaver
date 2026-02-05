@@ -31,9 +31,23 @@ export default function MarketingHero() {
           </h1>
           
           <p className="text-xl md:text-2xl text-muted-foreground mb-10">
-            Structured, recorded learning — powered by the{' '}
+            Structured, recorded learning — powered by{' '}
             <span className="text-primary font-semibold">KnowGraph</span> platform.
           </p>
+
+          {/* Auth Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+            <Link to="/login">
+              <Button size="lg" className="w-full sm:w-auto">
+                Sign In
+              </Button>
+            </Link>
+            <Link to="/signup">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto">
+                Sign Up
+              </Button>
+            </Link>
+          </div>
 
           {/* Feature bullets */}
           <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">

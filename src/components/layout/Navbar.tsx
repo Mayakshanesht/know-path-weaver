@@ -44,14 +44,12 @@ export default function Navbar() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-6">
-            <Link to="/courses" className="text-muted-foreground hover:text-foreground transition-colors">
+            <Link to="/home" className="text-muted-foreground hover:text-foreground transition-colors">
               Courses
             </Link>
-            {authUser && (
-              <Link to="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
-                Dashboard
-              </Link>
-            )}
+            <Link to="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
+              Classroom
+            </Link>
             {authUser?.isAdmin && (
               <Link to="/admin" className="text-muted-foreground hover:text-foreground transition-colors">
                 Admin
@@ -83,7 +81,7 @@ export default function Navbar() {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => navigate('/dashboard')}>
                     <LayoutDashboard className="w-4 h-4 mr-2" />
-                    Dashboard
+                    Classroom
                   </DropdownMenuItem>
                   {authUser.isAdmin && (
                     <DropdownMenuItem onClick={() => navigate('/admin')}>
@@ -126,21 +124,19 @@ export default function Navbar() {
           <div className="md:hidden py-4 border-t border-border">
             <div className="flex flex-col gap-4">
               <Link
-                to="/courses"
+                to="/home"
                 className="text-muted-foreground hover:text-foreground transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Courses
               </Link>
-              {authUser && (
-                <Link
-                  to="/dashboard"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Dashboard
-                </Link>
-              )}
+              <Link
+                to="/dashboard"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Classroom
+              </Link>
               {authUser?.isAdmin && (
                 <Link
                   to="/admin"

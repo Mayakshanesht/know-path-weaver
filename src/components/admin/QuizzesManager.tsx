@@ -19,6 +19,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -127,7 +128,7 @@ export default function QuizzesManager() {
     setEditingQuiz(null);
     setFormData({
       course_id: '',
-      capsule_id: '',
+      capsule_id: 'course-level',
       title: '',
       description: '',
       quiz_type: 'quiz',
@@ -144,7 +145,7 @@ export default function QuizzesManager() {
     setEditingQuiz(quiz);
     setFormData({
       course_id: quiz.course_id,
-      capsule_id: quiz.capsule_id || '',
+      capsule_id: quiz.capsule_id || 'course-level',
       title: quiz.title,
       description: quiz.description || '',
       quiz_type: quiz.quiz_type,
@@ -158,11 +159,31 @@ export default function QuizzesManager() {
     setDialogOpen(true);
   };
 
-  const handleSaveQuiz = async () => {
-    if (!formData.title.trim() || !formData.course_id) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.course_id) {
+      toast({
+        title: 'Course Required',
+        description: 'Please select a course for this quiz.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (formData.quiz_type === 'quiz' && !formData.capsule_id) {
+      toast({
+        title: 'Capsule Required',
+        description: 'Please select a capsule for this quiz.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!formData.title.trim()) {
       toast({
         title: 'Required fields missing',
-        description: 'Please fill in title and select a course.',
+        description: 'Please fill in title.',
         variant: 'destructive',
       });
       return;
@@ -170,7 +191,7 @@ export default function QuizzesManager() {
 
     const quizData = {
       course_id: formData.course_id,
-      capsule_id: formData.capsule_id || null,
+      capsule_id: formData.capsule_id === 'course-level' ? null : formData.capsule_id,
       title: formData.title,
       description: formData.description || null,
       quiz_type: formData.quiz_type,
@@ -317,6 +338,34 @@ export default function QuizzesManager() {
     }
   };
 
+  const handleReorderQuestions = async (quizId: string, dragIndex: number, dropIndex: number) => {
+    if (dragIndex === dropIndex) return;
+
+    const quiz = quizzes.find(q => q.id === quizId);
+    if (!quiz) return;
+
+    const reorderedQuestions = [...quiz.quiz_questions];
+    const [draggedQuestion] = reorderedQuestions.splice(dragIndex, 1);
+    reorderedQuestions.splice(dropIndex, 0, draggedQuestion);
+
+    // Update order_index for all questions individually
+    try {
+      for (let i = 0; i < reorderedQuestions.length; i++) {
+        const { error } = await supabase
+          .from('quiz_questions')
+          .update({ order_index: i })
+          .eq('id', reorderedQuestions[i].id);
+        
+        if (error) throw error;
+      }
+      
+      toast({ title: 'Questions reordered' });
+      fetchData();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -412,9 +461,9 @@ export default function QuizzesManager() {
                         {quiz.quiz_questions.map((q, i) => (
                           <div
                             key={q.id}
-                            className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg"
+                            className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg group"
                           >
-                            <GripVertical className="w-4 h-4 text-muted-foreground" />
+                            <GripVertical className="w-4 h-4 text-muted-foreground cursor-move opacity-0 group-hover:opacity-100 transition-opacity" />
                             <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-sm flex items-center justify-center">
                               {i + 1}
                             </span>
@@ -464,6 +513,9 @@ export default function QuizzesManager() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingQuiz ? 'Edit Quiz' : 'Create Quiz'}</DialogTitle>
+            <DialogDescription>
+              {editingQuiz ? 'Edit the quiz details and questions.' : 'Create a new quiz or assignment for your course.'}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -471,7 +523,7 @@ export default function QuizzesManager() {
               <Select
                 value={formData.course_id}
                 onValueChange={(value) => {
-                  setFormData({ ...formData, course_id: value, capsule_id: '' });
+                  setFormData({ ...formData, course_id: value, capsule_id: 'course-level' });
                   fetchCapsulesForCourse(value);
                 }}
               >
@@ -496,7 +548,7 @@ export default function QuizzesManager() {
                   <SelectValue placeholder="Course-level (no capsule)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Course-level (no capsule)</SelectItem>
+                  <SelectItem value="course-level">Course-level (no capsule)</SelectItem>
                   {capsules.map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
                   ))}
@@ -589,7 +641,7 @@ export default function QuizzesManager() {
               </div>
             </div>
 
-            <Button onClick={handleSaveQuiz} className="w-full">
+            <Button onClick={handleSubmit} className="w-full">
               {editingQuiz ? 'Update Quiz' : 'Create Quiz'}
             </Button>
           </div>
@@ -601,6 +653,9 @@ export default function QuizzesManager() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingQuestion ? 'Edit Question' : 'Add Question'}</DialogTitle>
+            <DialogDescription>
+              {editingQuestion ? 'Edit the question details and answer options.' : 'Add a new question to this quiz.'}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Course, LearningPath, Capsule } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -36,6 +37,9 @@ import {
 interface CourseWithPaths extends Course {
   learning_paths: (LearningPath & { capsules: Capsule[] })[];
 }
+
+// Lazy load CapsuleContentManager to avoid circular dependencies
+const CapsuleContentManager = lazy(() => import('./CapsuleContentManager'));
 
 export default function CoursesManager() {
   const { toast } = useToast();
@@ -208,6 +212,9 @@ export default function CoursesManager() {
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingCourse ? 'Edit Course' : 'Create New Course'}</DialogTitle>
+              <DialogDescription>
+                {editingCourse ? 'Update course details and curriculum.' : 'Create a new course with learning paths and capsules.'}
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
@@ -630,9 +637,6 @@ function CapsuleRow({ capsule, onRefresh }: { capsule: Capsule; onRefresh: () =>
     }
   };
 
-  // Dynamically import the content manager to avoid circular deps
-  const CapsuleContentManager = require('./CapsuleContentManager').default;
-
   return (
     <>
       <div className="flex items-center gap-2 bg-background/50 rounded p-2">
@@ -646,11 +650,12 @@ function CapsuleRow({ capsule, onRefresh }: { capsule: Capsule; onRefresh: () =>
               placeholder="Title"
               className="h-8 text-sm"
             />
-            <Input
-              value={editData.drive_file_id}
-              onChange={(e) => setEditData({ ...editData, drive_file_id: e.target.value })}
-              placeholder="Google Drive File ID (legacy)"
-              className="h-8 text-sm"
+            <Textarea
+              value={editData.description}
+              onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+              placeholder="Description"
+              rows={2}
+              className="text-sm"
             />
             <div className="flex gap-2">
               <Input
@@ -677,7 +682,7 @@ function CapsuleRow({ capsule, onRefresh }: { capsule: Capsule; onRefresh: () =>
               className="h-6 text-xs"
               onClick={handleOpenContent}
             >
-              Content
+              Edit Content
             </Button>
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(true)}>
               <Edit className="w-3 h-3" />
@@ -689,16 +694,18 @@ function CapsuleRow({ capsule, onRefresh }: { capsule: Capsule; onRefresh: () =>
         )}
       </div>
 
-      <CapsuleContentManager
-        capsuleId={capsule.id}
-        content={capsuleContent}
-        onRefresh={() => {
-          fetchCapsuleContent();
-          onRefresh();
-        }}
-        open={contentOpen}
-        onOpenChange={setContentOpen}
-      />
+      <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+        <CapsuleContentManager
+          capsuleId={capsule.id}
+          content={capsuleContent}
+          onRefresh={() => {
+            fetchCapsuleContent();
+            onRefresh();
+          }}
+          open={contentOpen}
+          onOpenChange={setContentOpen}
+        />
+      </Suspense>
     </>
   );
 }

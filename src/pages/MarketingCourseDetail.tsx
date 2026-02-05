@@ -461,18 +461,24 @@ export default function MarketingCourseDetail() {
                       <Button
                         size="lg"
                         className="w-full"
-                        onClick={() => setEnrollDialogOpen(true)}
+                        onClick={() => navigate('/courses')}
                       >
-                        Try Again
+                        View Course Details
                       </Button>
                     </div>
                   ) : (
                     <Button
                       size="lg"
                       className="w-full"
-                      onClick={() => setEnrollDialogOpen(true)}
+                      onClick={() => {
+                        if (authUser) {
+                          navigate('/courses');
+                        } else {
+                          navigate('/login');
+                        }
+                      }}
                     >
-                      {authUser ? 'Enroll Now' : 'Sign In to Enroll'}
+                      {authUser ? 'View Course & Enroll' : 'Sign In to Enroll'}
                     </Button>
                   )}
 
@@ -494,7 +500,7 @@ export default function MarketingCourseDetail() {
 
       {/* Enrollment Dialog */}
       <Dialog open={enrollDialogOpen} onOpenChange={setEnrollDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Complete Your Enrollment</DialogTitle>
             <DialogDescription>
@@ -502,7 +508,7 @@ export default function MarketingCourseDetail() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto space-y-4">
             {!authUser ? (
               <div className="text-center py-4">
                 <p className="text-muted-foreground mb-4">
@@ -560,30 +566,33 @@ export default function MarketingCourseDetail() {
                     </label>
                   </div>
                 </div>
-
-                <Button
-                  onClick={handleEnroll}
-                  disabled={enrolling}
-                  className="w-full"
-                >
-                  {enrolling ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    'Submit Enrollment'
-                  )}
-                </Button>
-
-                <p className="text-xs text-center text-muted-foreground">
-                  Access will be granted after payment verification
-                </p>
               </>
             )}
           </div>
+
+            <div className="mt-auto pt-4 border-t space-y-4">
+              <Button
+                onClick={handleEnroll}
+                disabled={enrolling}
+                className="w-full"
+              >
+                {enrolling ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  'Submit Enrollment'
+                )}
+              </Button>
+
+              <p className="text-xs text-center text-muted-foreground">
+                Access will be granted after payment verification
+              </p>
+            </div>
         </DialogContent>
       </Dialog>
+      <MarketingFooter />
     </div>
   );
 }

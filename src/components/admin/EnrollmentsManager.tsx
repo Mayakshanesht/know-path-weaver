@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import {
   Table,
@@ -18,6 +19,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -30,6 +32,9 @@ import {
   ExternalLink,
   Eye,
   Search,
+  CheckSquare,
+  Square,
+  UserMinus,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -41,6 +46,8 @@ export default function EnrollmentsManager() {
   const [selectedEnrollment, setSelectedEnrollment] = useState<EnrollmentWithUserAndCourse | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [selectedEnrollments, setSelectedEnrollments] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   useEffect(() => {
     fetchEnrollments();
@@ -132,6 +139,83 @@ export default function EnrollmentsManager() {
     setProcessing(false);
   };
 
+  const handleBulkApprove = async () => {
+    if (selectedEnrollments.length === 0) {
+      toast({
+        title: 'No selections',
+        description: 'Please select enrollments to approve.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setProcessing(true);
+
+    const { error } = await supabase
+      .from('enrollments')
+      .update({
+        status: 'approved',
+        approved_at: new Date().toISOString(),
+      })
+      .in('id', selectedEnrollments);
+
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: `${selectedEnrollments.length} enrollments approved!` });
+      setSelectedEnrollments([]);
+      fetchEnrollments();
+    }
+
+    setProcessing(false);
+  };
+
+  const handleSelectEnrollment = (enrollmentId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedEnrollments([...selectedEnrollments, enrollmentId]);
+    } else {
+      setSelectedEnrollments(selectedEnrollments.filter(id => id !== enrollmentId));
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedEnrollments(filteredEnrollments.filter(e => e.status === 'pending').map(e => e.id));
+    } else {
+      setSelectedEnrollments([]);
+    }
+  };
+
+  const handleRemoveStudent = async (enrollmentId: string, studentName: string) => {
+    if (!confirm(`Are you sure you want to remove ${studentName} from this course? This action cannot be undone.`)) {
+      return;
+    }
+
+    setProcessing(true);
+
+    const { error } = await supabase
+      .from('enrollments')
+      .delete()
+      .eq('id', enrollmentId);
+
+    if (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to remove student from course.',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Student Removed',
+        description: `${studentName} has been removed from the course.`,
+      });
+      setSelectedEnrollment(null);
+      fetchData(); // Refresh the enrollments list
+    }
+
+    setProcessing(false);
+  };
+
   const filteredEnrollments = enrollments.filter((e) => {
     const searchLower = search.toLowerCase();
     return (
@@ -171,10 +255,18 @@ export default function EnrollmentsManager() {
     }
   };
 
-  const EnrollmentTable = ({ items }: { items: EnrollmentWithUserAndCourse[] }) => (
+  const EnrollmentTable = ({ items, showBulkActions = false }: { items: EnrollmentWithUserAndCourse[]; showBulkActions?: boolean }) => (
     <Table>
       <TableHeader>
         <TableRow>
+          {showBulkActions && (
+            <TableHead className="w-12">
+              <Checkbox
+                checked={selectedEnrollments.length === items.filter(e => e.status === 'pending').length && items.filter(e => e.status === 'pending').length > 0}
+                onCheckedChange={handleSelectAll}
+              />
+            </TableHead>
+          )}
           <TableHead>Student</TableHead>
           <TableHead>Course</TableHead>
           <TableHead>Payment Ref</TableHead>
@@ -186,13 +278,23 @@ export default function EnrollmentsManager() {
       <TableBody>
         {items.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+            <TableCell colSpan={showBulkActions ? 7 : 6} className="text-center text-muted-foreground py-8">
               No enrollments found
             </TableCell>
           </TableRow>
         ) : (
           items.map((enrollment) => (
             <TableRow key={enrollment.id}>
+              {showBulkActions && (
+                <TableCell>
+                  {enrollment.status === 'pending' && (
+                    <Checkbox
+                      checked={selectedEnrollments.includes(enrollment.id)}
+                      onCheckedChange={(checked) => handleSelectEnrollment(enrollment.id, checked as boolean)}
+                    />
+                  )}
+                </TableCell>
+              )}
               <TableCell className="font-medium">
                 {enrollment.profiles?.full_name || 'Unknown'}
               </TableCell>
@@ -215,6 +317,20 @@ export default function EnrollmentsManager() {
                 >
                   <Eye className="w-4 h-4" />
                 </Button>
+                {enrollment.status === 'approved' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveStudent(
+                      enrollment.id,
+                      enrollment.profiles?.full_name || 'Unknown'
+                    )}
+                    disabled={processing}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <UserMinus className="w-4 h-4" />
+                  </Button>
+                )}
               </TableCell>
             </TableRow>
           ))
@@ -238,18 +354,47 @@ export default function EnrollmentsManager() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 justify-between">
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start">
         <h2 className="text-xl font-semibold">Manage Enrollments</h2>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
+        <div className="flex gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
         </div>
       </div>
+
+      {selectedEnrollments.length > 0 && (
+        <Card className="border-primary">
+          <CardContent className="py-4 flex items-center justify-between">
+            <span className="text-sm">
+              {selectedEnrollments.length} enrollment{selectedEnrollments.length > 1 ? 's' : ''} selected
+            </span>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleBulkApprove}
+                disabled={processing}
+                size="sm"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                Approve Selected
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedEnrollments([])}
+              >
+                Clear Selection
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="pt-6">
@@ -267,15 +412,15 @@ export default function EnrollmentsManager() {
             </TabsList>
 
             <TabsContent value="pending" className="mt-4">
-              <EnrollmentTable items={pending} />
+              <EnrollmentTable items={pending} showBulkActions={true} />
             </TabsContent>
 
             <TabsContent value="approved" className="mt-4">
-              <EnrollmentTable items={approved} />
+              <EnrollmentTable items={approved} showBulkActions={false} />
             </TabsContent>
 
             <TabsContent value="rejected" className="mt-4">
-              <EnrollmentTable items={rejected} />
+              <EnrollmentTable items={rejected} showBulkActions={false} />
             </TabsContent>
           </Tabs>
         </CardContent>
@@ -286,6 +431,9 @@ export default function EnrollmentsManager() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Enrollment Details</DialogTitle>
+            <DialogDescription>
+              Review and manage enrollment information and payment status.
+            </DialogDescription>
           </DialogHeader>
 
           {selectedEnrollment && (
@@ -366,6 +514,23 @@ export default function EnrollmentsManager() {
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Admin Notes</p>
                   <p className="text-sm bg-muted p-3 rounded">{selectedEnrollment.admin_notes}</p>
+                </div>
+              )}
+
+              {selectedEnrollment.status === 'approved' && (
+                <div className="pt-4 border-t">
+                  <Button
+                    variant="destructive"
+                    onClick={() => handleRemoveStudent(
+                      selectedEnrollment.id,
+                      selectedEnrollment.profiles?.full_name || 'Unknown'
+                    )}
+                    disabled={processing}
+                    className="w-full"
+                  >
+                    <UserMinus className="w-4 h-4 mr-2" />
+                    Remove Student from Course
+                  </Button>
                 </div>
               )}
             </div>

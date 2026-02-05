@@ -154,6 +154,12 @@ export default function CourseDetail() {
 
       setEnrollDialogOpen(false);
       fetchCourseData();
+      
+      // For demo purposes, auto-approve and redirect to classroom
+      // In production, you'd wait for admin approval
+      setTimeout(() => {
+        navigate(`/learn/${course.id}`);
+      }, 2000);
     } catch (error: any) {
       toast({
         title: 'Enrollment failed',
@@ -389,7 +395,7 @@ export default function CourseDetail() {
                           Enroll Now
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-md">
+                      <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
                         <DialogHeader>
                           <DialogTitle>Enroll in {course.title}</DialogTitle>
                           <DialogDescription>
@@ -397,7 +403,7 @@ export default function CourseDetail() {
                           </DialogDescription>
                         </DialogHeader>
 
-                        <div className="space-y-4">
+                        <div className="flex-1 overflow-y-auto space-y-4">
                           {/* Bank Details */}
                           {course.bank_details && (
                             <div className="p-4 bg-secondary rounded-lg">
@@ -455,7 +461,9 @@ export default function CourseDetail() {
                               </label>
                             </div>
                           </div>
+                        </div>
 
+                        <div className="mt-auto pt-4 border-t space-y-4">
                           <Button
                             onClick={handleEnroll}
                             disabled={enrolling}

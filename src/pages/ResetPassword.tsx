@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -19,15 +19,61 @@ export default function ResetPassword() {
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isValidToken, setIsValidToken] = useState(false);
+  const [checkingToken, setCheckingToken] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isValid } = usePasswordValidation(password);
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    // Check if we have a valid session from the reset link
+    // Check if we have a valid session from reset link
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      try {
+        // Get the current hash fragment to check for reset tokens
+        const hash = window.location.hash;
+        const accessToken = new URLSearchParams(hash.substring(1)).get('access_token');
+        
+        if (!accessToken) {
+          toast({
+            title: 'Invalid or expired link',
+            description: 'Please request a new password reset link.',
+            variant: 'destructive',
+          });
+          navigate('/forgot-password');
+          return;
+        }
+
+        // Verify the session is valid for password reset
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error || !session) {
+          toast({
+            title: 'Invalid or expired link',
+            description: 'Please request a new password reset link.',
+            variant: 'destructive',
+          });
+          navigate('/forgot-password');
+          return;
+        }
+
+        // Check if this is a password recovery session
+        const { data: { user } } = await supabase.auth.getUser(accessToken);
+        
+        if (!user) {
+          toast({
+            title: 'Invalid session',
+            description: 'Please request a new password reset link.',
+            variant: 'destructive',
+          });
+          navigate('/forgot-password');
+          return;
+        }
+
+        setIsValidToken(true);
+        setCheckingToken(false);
+      } catch (error) {
+        console.error('Error validating reset token:', error);
         toast({
           title: 'Invalid or expired link',
           description: 'Please request a new password reset link.',
@@ -36,6 +82,7 @@ export default function ResetPassword() {
         navigate('/forgot-password');
       }
     };
+    
     checkSession();
   }, [navigate, toast]);
 
@@ -62,27 +109,80 @@ export default function ResetPassword() {
 
     setIsLoading(true);
 
-    const { error } = await supabase.auth.updateUser({
-      password: password,
-    });
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: password,
+      });
 
-    if (error) {
+      if (error) {
+        toast({
+          title: 'Error',
+          description: error.message,
+          variant: 'destructive',
+        });
+      } else {
+        // Sign out the user after successful password reset
+        await supabase.auth.signOut();
+        
+        setSuccess(true);
+        toast({
+          title: 'Password updated!',
+          description: 'Your password has been successfully reset. Please sign in with your new password.',
+        });
+        setTimeout(() => navigate('/login'), 3000);
+      }
+    } catch (err: any) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: err.message || 'Failed to update password',
         variant: 'destructive',
       });
-    } else {
-      setSuccess(true);
-      toast({
-        title: 'Password updated!',
-        description: 'Your password has been successfully reset.',
-      });
-      setTimeout(() => navigate('/login'), 3000);
     }
 
     setIsLoading(false);
   };
+
+  if (checkingToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-background p-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-md"
+        >
+          <Card className="shadow-xl border-border/50">
+            <CardContent className="py-12 text-center">
+              <Loader2 className="w-8 h-8 mx-auto animate-spin mb-4" />
+              <p className="text-muted-foreground">Validating reset link...</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (!isValidToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-background p-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-md"
+        >
+          <Card className="shadow-xl border-border/50">
+            <CardContent className="py-12 text-center">
+              <p className="text-destructive mb-4">Invalid or expired reset link</p>
+              <Button onClick={() => navigate('/forgot-password')}>
+                Request New Link
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-background p-4">

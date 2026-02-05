@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Course, LearningPath, Capsule, Progress, CapsulePrerequisite } from '@/types/database';
+import { Course, Capsule, LearningPath, CapsuleContent, Progress, Quiz, QuizWithQuestions, CapsuleWithProgress, LearningPathWithCapsules as BaseLearningPathWithCapsules } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress as ProgressBar } from '@/components/ui/progress';
@@ -22,15 +22,20 @@ import {
   X,
   Home,
   BookOpen,
+  FileVideo,
+  Youtube,
+  Github,
+  ExternalLink,
+  FileText,
+  Image,
+  FileType,
 } from 'lucide-react';
 
-interface CapsuleWithStatus extends Capsule {
-  progress?: Progress | null;
-  isLocked: boolean;
+interface CapsuleWithStatus extends CapsuleWithProgress {
   isCompleted: boolean;
 }
 
-interface LearningPathWithCapsules extends LearningPath {
+interface LearningPathWithCapsules extends BaseLearningPathWithCapsules {
   capsules: CapsuleWithStatus[];
 }
 
@@ -43,6 +48,8 @@ export default function LearnCourse() {
   const [course, setCourse] = useState<Course | null>(null);
   const [learningPaths, setLearningPaths] = useState<LearningPathWithCapsules[]>([]);
   const [currentCapsule, setCurrentCapsule] = useState<CapsuleWithStatus | null>(null);
+  const [capsuleContent, setCapsuleContent] = useState<CapsuleContent[]>([]);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [prerequisites, setPrerequisites] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -94,6 +101,16 @@ export default function LearnCourse() {
       return;
     }
     setCourse(courseData);
+
+    // Fetch quizzes for this course
+    const { data: quizData } = await supabase
+      .from('quizzes')
+      .select('*')
+      .eq('course_id', courseId)
+      .eq('is_published', true)
+      .order('order_index');
+
+    setQuizzes(quizData || []);
 
     // Fetch learning paths with capsules
     const { data: pathsData } = await supabase
@@ -176,6 +193,7 @@ export default function LearnCourse() {
         }
         if (!capsule.isCompleted && !capsule.isLocked) {
           setCurrentCapsule(capsule);
+          fetchCapsuleContent(capsule.id);
           setLoading(false);
           return;
         }
@@ -183,6 +201,9 @@ export default function LearnCourse() {
     }
 
     setCurrentCapsule(firstCapsule);
+    if (firstCapsule) {
+      fetchCapsuleContent(firstCapsule.id);
+    }
     setLoading(false);
   };
 
@@ -223,9 +244,197 @@ export default function LearnCourse() {
     setMarking(false);
   };
 
-  const navigateToCapsule = (capsule: CapsuleWithStatus) => {
+  const fetchCapsuleContent = async (capsuleId: string) => {
+    const { data } = await supabase
+      .from('capsule_content')
+      .select('*')
+      .eq('capsule_id', capsuleId)
+      .order('order_index');
+    
+    setCapsuleContent((data || []) as CapsuleContent[]);
+  };
+
+  const renderContent = (content: CapsuleContent) => {
+    const config = {
+      google_drive: { icon: FileVideo, label: 'Google Drive' },
+      youtube: { icon: Youtube, label: 'YouTube' },
+      github: { icon: Github, label: 'GitHub' },
+      colab: { icon: ExternalLink, label: 'Google Colab' },
+      weblink: { icon: ExternalLink, label: 'Web Link' },
+      text: { icon: FileText, label: 'Text' },
+      image: { icon: Image, label: 'Image' },
+      pdf: { icon: FileType, label: 'PDF' },
+    };
+
+    const { icon: Icon, label } = config[content.content_type];
+
+    switch (content.content_type) {
+      case 'google_drive':
+        return (
+          <iframe
+            src={`https://drive.google.com/file/d/${content.content_value}/preview`}
+            className="w-full h-full border-0"
+            allow="autoplay; encrypted-media; fullscreen"
+            allowFullScreen
+            referrerPolicy="no-referrer-when-downgrade"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-presentation allow-top-navigation"
+          />
+        );
+      
+      case 'youtube':
+        const getYoutubeEmbedUrl = (url: string) => {
+          // Handle various YouTube URL formats
+          if (url.includes('youtube.com/watch?v=')) {
+            const videoId = url.split('v=')[1]?.split('&')[0];
+            return `https://www.youtube.com/embed/${videoId}`;
+          }
+          if (url.includes('youtu.be/')) {
+            const videoId = url.split('/').pop();
+            return `https://www.youtube.com/embed/${videoId}`;
+          }
+          if (url.includes('youtube.com/embed/')) {
+            return url; // Already in embed format
+          }
+          // Default: treat as video ID
+          return `https://www.youtube.com/embed/${url}`;
+        };
+        
+        return (
+          <div className="w-full h-full flex flex-col">
+            <iframe
+              src={getYoutubeEmbedUrl(content.content_value)}
+              className="w-full h-full border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              title={content.title || 'YouTube Video'}
+            />
+            <div className="mt-2 p-2 bg-secondary/50">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(content.content_value, '_blank')}
+                className="w-full"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open in YouTube
+              </Button>
+            </div>
+          </div>
+        );
+      
+      case 'github':
+        return (
+          <div className="w-full h-full flex flex-col">
+            <iframe
+              src={content.content_value}
+              className="w-full h-full border-0"
+              allowFullScreen
+              title={content.title || 'GitHub Repository'}
+            />
+            <div className="mt-2 p-2 bg-secondary/50">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(content.content_value, '_blank')}
+                className="w-full"
+              >
+                <Github className="w-4 h-4 mr-2" />
+                Open in GitHub
+              </Button>
+            </div>
+          </div>
+        );
+      
+      case 'colab':
+        return (
+          <div className="w-full h-full flex flex-col">
+            <iframe
+              src={content.content_value}
+              className="w-full h-full border-0"
+              allowFullScreen
+              title={content.title || 'Google Colab Notebook'}
+            />
+            <div className="mt-2 p-2 bg-secondary/50">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(content.content_value, '_blank')}
+                className="w-full"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open in Colab
+              </Button>
+            </div>
+          </div>
+        );
+      
+      case 'weblink':
+        return (
+          <div className="w-full h-full flex flex-col">
+            <iframe
+              src={content.content_value}
+              className="w-full h-full border-0"
+              allowFullScreen
+              title={content.title || 'External Content'}
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-presentation allow-top-navigation"
+            />
+            <div className="mt-2 p-2 bg-secondary/50">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(content.content_value, '_blank')}
+                className="w-full"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open in New Tab
+              </Button>
+            </div>
+          </div>
+        );
+      
+      case 'text':
+        return (
+          <div className="p-6 bg-white dark:bg-gray-900 rounded-lg">
+            <div className="prose prose-sm max-w-none dark:prose-invert">
+              <pre className="whitespace-pre-wrap text-sm">{content.content_value}</pre>
+            </div>
+          </div>
+        );
+      
+      case 'image':
+        return (
+          <img
+            src={content.content_value}
+            alt={content.title || 'Content image'}
+            className="w-full h-full object-contain"
+          />
+        );
+      
+      case 'pdf':
+        return (
+          <iframe
+            src={content.content_value}
+            className="w-full h-full border-0"
+            allowFullScreen
+          />
+        );
+      
+      default:
+        return (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <Icon className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+              <p className="text-muted-foreground">Unsupported content type: {label}</p>
+            </div>
+          </div>
+        );
+    }
+  };
+
+  const navigateToCapsule = async (capsule: CapsuleWithStatus) => {
     if (!capsule.isLocked) {
       setCurrentCapsule(capsule);
+      await fetchCapsuleContent(capsule.id);
     }
   };
 
@@ -389,24 +598,118 @@ export default function LearnCourse() {
               transition={{ duration: 0.4 }}
               className="max-w-4xl mx-auto space-y-6"
             >
-              {/* Video Player */}
-              <Card className="overflow-hidden">
-                <div className="aspect-video bg-black flex items-center justify-center">
-                  {currentCapsule.drive_file_id ? (
+              {/* Content Player */}
+              {capsuleContent.length > 0 ? (
+                <div className="space-y-6">
+                  {capsuleContent.map((content, index) => (
+                    <Card key={content.id} className="overflow-hidden">
+                      <div className="bg-muted/50 px-4 py-2 border-b">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-sm flex items-center justify-center font-medium">
+                            {index + 1}
+                          </span>
+                          <h3 className="font-medium">{content.title || `Content ${index + 1}`}</h3>
+                          <Badge variant="outline" className="text-xs">
+                            {content.content_type.replace('_', ' ')}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="aspect-video bg-black flex items-center justify-center">
+                        {renderContent(content)}
+                      </div>
+                      {content.description && (
+                        <div className="p-4 bg-muted/30">
+                          <p className="text-sm text-muted-foreground">{content.description}</p>
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              ) : null}
+
+              {/* Quizzes */}
+              {quizzes.filter(quiz => 
+                quiz.capsule_id === currentCapsule?.id || 
+                (quiz.capsule_id === null && quiz.quiz_type === 'assignment')
+              ).length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Assessments</h3>
+                  {quizzes
+                    .filter(quiz => 
+                      quiz.capsule_id === currentCapsule?.id || 
+                      (quiz.capsule_id === null && quiz.quiz_type === 'assignment')
+                    )
+                    .map((quiz, index) => (
+                      <Card key={quiz.id} className="overflow-hidden">
+                        <div className="bg-muted/50 px-4 py-2 border-b">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-blue-10 text-blue-600 text-sm flex items-center justify-center font-medium">
+                              Q{index + 1}
+                            </span>
+                            <h3 className="font-medium">{quiz.title}</h3>
+                            <Badge variant="outline" className="text-xs">
+                              {quiz.quiz_type === 'quiz' ? 'Quiz' : 'Assignment'}
+                            </Badge>
+                            {quiz.is_graded && (
+                              <Badge variant="secondary" className="text-xs">
+                                Graded
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="p-4">
+                          {quiz.description && (
+                            <p className="text-sm text-muted-foreground mb-4">{quiz.description}</p>
+                          )}
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                            {quiz.time_limit_minutes && (
+                              <span>Time Limit: {quiz.time_limit_minutes} minutes</span>
+                            )}
+                            {quiz.passing_score && (
+                              <span>Passing Score: {quiz.passing_score}%</span>
+                            )}
+                            {quiz.max_attempts && (
+                              <span>Max Attempts: {quiz.max_attempts}</span>
+                            )}
+                          </div>
+                          <Button 
+                            onClick={() => navigate(`/quiz/${quiz.id}`)}
+                            className="w-full"
+                          >
+                            Start {quiz.quiz_type === 'quiz' ? 'Quiz' : 'Assignment'}
+                          </Button>
+                        </div>
+                      </Card>
+                    ))}
+                </div>
+              )}
+
+              {capsuleContent.length === 0 && !quizzes.filter(quiz => 
+                quiz.capsule_id === currentCapsule?.id || 
+                (quiz.capsule_id === null && quiz.quiz_type === 'assignment')
+              ).length && currentCapsule.drive_file_id ? (
+                <Card className="overflow-hidden">
+                  <div className="aspect-video bg-black flex items-center justify-center">
                     <iframe
                       src={`https://drive.google.com/file/d/${currentCapsule.drive_file_id}/preview`}
-                      className="w-full h-full"
-                      allow="autoplay; encrypted-media"
+                      className="w-full h-full border-0"
+                      allow="autoplay; encrypted-media; fullscreen"
                       allowFullScreen
+                      referrerPolicy="no-referrer-when-downgrade"
+                      sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-presentation allow-top-navigation"
                     />
-                  ) : (
+                  </div>
+                </Card>
+              ) : (
+                <Card className="overflow-hidden">
+                  <div className="aspect-video bg-black flex items-center justify-center">
                     <div className="text-center text-white/70">
                       <BookOpen className="w-16 h-16 mx-auto mb-4" />
-                      <p>No video content available</p>
+                      <p>No content available</p>
                     </div>
-                  )}
-                </div>
-              </Card>
+                  </div>
+                </Card>
+              )}
 
               {/* Capsule Info */}
               <Card>

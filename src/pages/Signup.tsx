@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, Lock, User, ArrowLeft, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Mail, Lock, User, ArrowLeft, AlertCircle, CheckCircle, Eye, EyeOff, ArrowRight, BookOpen } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import knowgraphLogo from '@/assets/knowgraph-logo.png';
 import { PasswordStrengthIndicator } from '@/components/auth/PasswordStrengthIndicator';
@@ -18,6 +19,7 @@ export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { signUp } = useAuth();
@@ -41,20 +43,32 @@ export default function Signup() {
 
     const { error } = await signUp(email, password, fullName);
 
+    console.log('Signup result:', { error, email, fullName });
+
     if (error) {
+      console.error('Signup error:', error);
       toast({
         title: "Signup failed",
         description: error.message,
         variant: "destructive"
       });
     } else {
-      setSuccess(true);
+      console.log('Signup successful, setting success state');
+      setShowSuccess(true);
+      toast({
+        title: "Account created!",
+        description: "Your account has been created successfully."
+      });
     }
 
     setIsLoading(false);
   };
 
-  if (success) {
+  const handleStartLearning = () => {
+    window.location.href = '/home';
+  };
+
+  if (showSuccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-background p-4">
         <motion.div
@@ -65,25 +79,22 @@ export default function Signup() {
         >
           <Card className="shadow-xl border-border/50">
             <CardHeader className="text-center">
-              <CheckCircle className="w-16 h-16 mx-auto text-green-500 mb-4" />
-              <CardTitle className="text-2xl">Check your email</CardTitle>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+              </div>
+              <CardTitle className="text-2xl">Account Created!</CardTitle>
               <CardDescription>
-                We've sent a verification link to <strong>{email}</strong>
+                Your account has been created successfully. You're ready to start learning.
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center space-y-4">
-              <p className="text-muted-foreground">
-                Click the link in the email to verify your account and start learning.
-              </p>
-              <Alert className="text-left">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Important:</strong> You must verify your email before you can sign in.
-                  Check your spam folder if you don't see the email.
-                </AlertDescription>
-              </Alert>
-              <Button onClick={() => navigate('/login')} className="w-full">
-                Go to Login
+            <CardContent className="text-center">
+              <Button 
+                onClick={handleStartLearning}
+                size="lg"
+                className="w-full"
+              >
+                Start Learning
+                <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </CardContent>
           </Card>

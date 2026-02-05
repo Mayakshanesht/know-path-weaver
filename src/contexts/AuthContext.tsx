@@ -8,6 +8,7 @@ interface AuthContextType {
   session: Session | null;
   authUser: AuthUser | null;
   loading: boolean;
+  userDataLoading: boolean;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -20,8 +21,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userDataLoading, setUserDataLoading] = useState(false);
 
   const fetchUserData = async (userId: string, email: string) => {
+    setUserDataLoading(true);
     try {
       // Fetch profile and roles in parallel
       const [profileResult, rolesResult] = await Promise.all([
@@ -42,7 +45,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     } catch (error) {
       console.error('Error fetching user data:', error);
-      setAuthUser(null);
+      setAuthUser({
+        id: userId,
+        email,
+        profile: null,
+        roles: [],
+        isAdmin: false,
+      });
+    } finally {
+      setUserDataLoading(false);
     }
   };
 
@@ -54,27 +65,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          // Use setTimeout to prevent blocking the auth callback
-          setTimeout(() => {
-            fetchUserData(session.user.id, session.user.email || '');
-          }, 0);
+          // Mark auth as ready immediately, fetch profile/roles in background.
+          setAuthUser({
+            id: session.user.id,
+            email: session.user.email || '',
+            profile: null,
+            roles: [],
+            isAdmin: false,
+          });
+
+          fetchUserData(session.user.id, session.user.email || '');
         } else {
           setAuthUser(null);
+          setUserDataLoading(false);
         }
         setLoading(false);
       }
     );
 
     // Then check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       setUser(session?.user ?? null);
 
       if (session?.user) {
+        setAuthUser({
+          id: session.user.id,
+          email: session.user.email || '',
+          profile: null,
+          roles: [],
+          isAdmin: false,
+        });
+
         fetchUserData(session.user.id, session.user.email || '');
+      } else {
+        setAuthUser(null);
+        setUserDataLoading(false);
       }
+
       setLoading(false);
-    });
+    })();
 
     return () => {
       subscription.unsubscribe();
@@ -108,10 +139,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setSession(null);
     setAuthUser(null);
+    setUserDataLoading(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, authUser, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, authUser, loading, userDataLoading, signUp, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

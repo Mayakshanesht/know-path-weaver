@@ -9,7 +9,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BookOpen, Clock, IndianRupee, Euro } from 'lucide-react';
+import { BookOpen, Clock, IndianRupee, Euro, Info } from 'lucide-react';
 
 export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -45,9 +45,9 @@ export default function Courses() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h1 className="text-4xl font-bold mb-4">Explore Our Courses</h1>
+            <h1 className="text-4xl font-bold mb-4">Explore Courses</h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Structured learning paths designed to take you from beginner to expert
+              Choose from our structured learning paths and start your journey
             </p>
           </motion.div>
 

@@ -24,7 +24,7 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
   }
 
   if (requireAdmin && !authUser.isAdmin) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/home" replace />;
   }
 
   return <>{children}</>;

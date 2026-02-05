@@ -6,11 +6,13 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import Courses from "./pages/Courses";
+import Login from '@/pages/Login';
+import Signup from '@/pages/Signup';
+import ForgotPassword from '@/pages/ForgotPassword';
+import ResetPassword from '@/pages/ResetPassword';
+import QuickPasswordReset from '@/pages/QuickPasswordReset';
+import Quiz from '@/pages/Quiz';
+import Courses from '@/pages/Courses';
 import CourseDetail from "./pages/CourseDetail";
 import MarketingCourseDetail from "./pages/MarketingCourseDetail";
 import Dashboard from "./pages/Dashboard";
@@ -33,7 +35,9 @@ const App = () => (
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/courses" element={<Courses />} />
+            <Route path="/quick-reset" element={<QuickPasswordReset />} />
+            <Route path="/quiz/:quizId" element={<ProtectedRoute><Quiz /></ProtectedRoute>} />
+            <Route path="/home" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
             <Route path="/courses/:courseId" element={<CourseDetail />} />
             <Route path="/course/:slug" element={<MarketingCourseDetail />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
