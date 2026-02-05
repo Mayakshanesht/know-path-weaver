@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
+import knowgraphLogo from '@/assets/knowgraph-logo.png';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -58,9 +59,7 @@ export default function ForgotPassword() {
 
         <Card className="shadow-xl border-border/50">
           <CardHeader className="text-center">
-            <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xl">K</span>
-            </div>
+            <img src={knowgraphLogo} alt="KnowGraph" className="h-12 mx-auto mb-4" />
             <CardTitle className="text-2xl">Reset Password</CardTitle>
             <CardDescription>
               {emailSent
