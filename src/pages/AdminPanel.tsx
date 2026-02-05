@@ -1,12 +1,12 @@
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BookOpen, Users, BarChart3 } from 'lucide-react';
+import { BookOpen, Users, BarChart3, FileQuestion } from 'lucide-react';
 import CoursesManager from '@/components/admin/CoursesManager';
 import EnrollmentsManager from '@/components/admin/EnrollmentsManager';
 import ProgressViewer from '@/components/admin/ProgressViewer';
+import QuizzesManager from '@/components/admin/QuizzesManager';
 
 export default function AdminPanel() {
   return (
@@ -25,7 +25,7 @@ export default function AdminPanel() {
           </motion.div>
 
           <Tabs defaultValue="courses" className="space-y-6">
-            <TabsList className="grid w-full max-w-md grid-cols-3">
+            <TabsList className="grid w-full max-w-lg grid-cols-4">
               <TabsTrigger value="courses" className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4" />
                 <span className="hidden sm:inline">Courses</span>
@@ -33,6 +33,10 @@ export default function AdminPanel() {
               <TabsTrigger value="enrollments" className="flex items-center gap-2">
                 <Users className="w-4 h-4" />
                 <span className="hidden sm:inline">Enrollments</span>
+              </TabsTrigger>
+              <TabsTrigger value="quizzes" className="flex items-center gap-2">
+                <FileQuestion className="w-4 h-4" />
+                <span className="hidden sm:inline">Quizzes</span>
               </TabsTrigger>
               <TabsTrigger value="progress" className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" />
@@ -46,6 +50,10 @@ export default function AdminPanel() {
 
             <TabsContent value="enrollments">
               <EnrollmentsManager />
+            </TabsContent>
+
+            <TabsContent value="quizzes">
+              <QuizzesManager />
             </TabsContent>
 
             <TabsContent value="progress">
