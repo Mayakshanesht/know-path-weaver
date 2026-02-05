@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BookOpen, Clock, IndianRupee, Euro, Info, CreditCard, QrCode, Mail, Phone } from 'lucide-react';
-import paymentQR from '@/assets/payment-qr.png';
+import paymentQR from '@/assets/payment-qr.png?url';
 
 export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -126,6 +126,25 @@ export default function Courses() {
                           <span>€{course.price_international || 0}</span>
                         </div>
                       </div>
+
+                      {(course.bank_details || course.payment_reference_code) && (
+                        <div className="mt-4 rounded-lg border bg-muted/30 p-3 space-y-2">
+                          {course.payment_reference_code && (
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              <span className="text-muted-foreground">Reference</span>
+                              <span className="font-mono">{course.payment_reference_code}</span>
+                            </div>
+                          )}
+                          {course.bank_details && (
+                            <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4">
+                              {course.bank_details}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            Pay first, then enroll from the course page.
+                          </p>
+                        </div>
+                      )}
                     </CardContent>
 
                     <CardFooter>
@@ -208,6 +227,11 @@ export default function Courses() {
                       src={paymentQR} 
                       alt="Payment QR Code" 
                       className="w-48 h-48 mx-auto mb-4 border rounded-lg"
+                      onError={(e) => {
+                        console.error('QR image failed to load', e);
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
                     />
                     <p className="text-sm text-muted-foreground">
                       Scan to pay via PhonePay

@@ -33,7 +33,7 @@ import {
   Phone,
   Info,
 } from 'lucide-react';
-import paymentQR from '@/assets/payment-qr.png';
+import paymentQR from '@/assets/payment-qr.png?url';
 
 interface LearningPathWithCapsules extends LearningPath {
   capsules: Capsule[];
@@ -475,6 +475,11 @@ export default function CourseDetail() {
                               src={paymentQR} 
                               alt="Payment QR Code" 
                               className="w-32 h-32 mx-auto mb-2 border rounded-lg bg-white p-2"
+                              onError={(e) => {
+                                console.error('QR image failed to load', e);
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                              }}
                             />
                             <p className="text-xs text-muted-foreground text-center">
                               Scan to pay via PhonePay
@@ -554,6 +559,7 @@ export default function CourseDetail() {
                         </div>
                       </DialogContent>
                     </Dialog>
+                    </div>
                   )}
 
                   <Badge variant="secondary" className="w-full justify-center py-2">
