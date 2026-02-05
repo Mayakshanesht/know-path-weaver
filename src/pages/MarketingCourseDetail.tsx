@@ -47,8 +47,45 @@ export default function MarketingCourseDetail() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [enrolled, setEnrolled] = useState(false);
+  const [enrollmentStatus, setEnrollmentStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none');
+  const [dbCourseId, setDbCourseId] = useState<string | null>(null);
 
   const course = slug ? getCourseBySlug(slug) : undefined;
+
+  // Check if user is already enrolled
+  useEffect(() => {
+    const checkEnrollmentStatus = async () => {
+      if (!authUser || !course) return;
+      
+      // Find the course in DB by title
+      const { data: dbCourse } = await supabase
+        .from('courses')
+        .select('id')
+        .eq('title', course.title)
+        .maybeSingle();
+      
+      if (dbCourse) {
+        setDbCourseId(dbCourse.id);
+        
+        // Check enrollment
+        const { data: enrollment } = await supabase
+          .from('enrollments')
+          .select('status')
+          .eq('user_id', authUser.id)
+          .eq('course_id', dbCourse.id)
+          .maybeSingle();
+        
+        if (enrollment) {
+          setEnrollmentStatus(enrollment.status);
+          if (enrollment.status === 'pending') {
+            setEnrolled(true);
+          }
+        }
+      }
+    };
+    
+    checkEnrollmentStatus();
+  }, [authUser, course]);
 
   if (!course) {
     return (
@@ -120,33 +157,37 @@ export default function MarketingCourseDetail() {
       const courseId = existingCourse?.id;
 
       if (!courseId) {
-        // Create the course in DB first
-        const { data: newCourse, error: courseError } = await supabase
-          .from('courses')
-          .insert({
-            title: course.title,
-            description: course.description,
-            price_india: course.priceIndia,
-            price_international: course.priceInternational || 0,
-            payment_reference_code: course.paymentReference,
-            bank_details: `Account Name: ${PAYMENT_DETAILS.accountName}\nAccount Number: ${PAYMENT_DETAILS.accountNumber}\nIFSC: ${PAYMENT_DETAILS.ifsc}\nBank: ${PAYMENT_DETAILS.bank}`,
-            is_published: true,
-          })
-          .select()
-          .single();
-
-        if (courseError) throw courseError;
-
-        const { error: enrollError } = await supabase.from('enrollments').insert({
-          user_id: authUser.id,
-          course_id: newCourse.id,
-          payment_reference: paymentReference,
-          payment_receipt_url: receiptUrl,
-          status: 'pending',
+        // Course doesn't exist in DB - this shouldn't happen for live courses
+        // But admin may need to create it first
+        toast({
+          title: 'Course not available',
+          description: 'This course is not yet available for enrollment. Please contact support.',
+          variant: 'destructive',
         });
-
-        if (enrollError) throw enrollError;
+        setEnrolling(false);
+        return;
       } else {
+        // Check if already enrolled
+        const { data: existingEnrollment } = await supabase
+          .from('enrollments')
+          .select('id, status')
+          .eq('user_id', authUser.id)
+          .eq('course_id', courseId)
+          .maybeSingle();
+        
+        if (existingEnrollment) {
+          toast({
+            title: 'Already enrolled',
+            description: `You're already enrolled in this course. Status: ${existingEnrollment.status}`,
+            variant: 'default',
+          });
+          setEnrollmentStatus(existingEnrollment.status);
+          setEnrolled(true);
+          setEnrolling(false);
+          setEnrollDialogOpen(false);
+          return;
+        }
+        
         const { error: enrollError } = await supabase.from('enrollments').insert({
           user_id: authUser.id,
           course_id: courseId,
@@ -156,13 +197,17 @@ export default function MarketingCourseDetail() {
         });
 
         if (enrollError) throw enrollError;
+        
+        setDbCourseId(courseId);
       }
 
       setEnrolled(true);
+      setEnrollmentStatus('pending');
       toast({
         title: 'Enrollment submitted!',
         description: 'Your payment is pending verification.',
       });
+      setEnrollDialogOpen(false);
     } catch (error: any) {
       toast({
         title: 'Enrollment failed',
