@@ -9,7 +9,8 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BookOpen, Clock, IndianRupee, Euro, Info } from 'lucide-react';
+import { BookOpen, Clock, IndianRupee, Euro, Info, CreditCard, QrCode, Mail, Phone } from 'lucide-react';
+import paymentQR from '@/assets/payment-qr.png';
 
 export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -138,6 +139,116 @@ export default function Courses() {
             </div>
           )}
         </div>
+
+        {/* Payment Information Section */}
+        <motion.div
+          className="mt-16 mb-12"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+        >
+          <Card className="max-w-4xl mx-auto border-primary/20 bg-primary/5">
+            <CardHeader className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <CreditCard className="w-6 h-6 text-primary" />
+                <h2 className="text-2xl font-bold">Payment Information</h2>
+              </div>
+              <p className="text-muted-foreground">
+                After payment, send confirmation to the details below
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Bank Details */}
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <CreditCard className="w-5 h-5" />
+                    Bank Transfer Details
+                  </h3>
+                  <div className="bg-card p-4 rounded-lg border space-y-3">
+                    <div>
+                      <span className="font-medium">Account Name:</span>
+                      <p className="text-sm text-muted-foreground">CloudBee Robotics</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">Account Holder:</span>
+                      <p className="text-sm text-muted-foreground">Rajendra Dyandev Waghachoure</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">Bank:</span>
+                      <p className="text-sm text-muted-foreground">Pune District Central Co-Op Bank Ltd., Pune</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">Branch:</span>
+                      <p className="text-sm text-muted-foreground">Ranjangaon Sandas</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">Account Number:</span>
+                      <p className="text-sm text-muted-foreground font-mono">183001600000130</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">IFSC:</span>
+                      <p className="text-sm text-muted-foreground font-mono">HDFC0CPDCCB</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">Reference:</span>
+                      <p className="text-sm text-muted-foreground font-mono">ADAS_COURSE_2025</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* QR Code Section */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <QrCode className="w-5 h-5" />
+                    PhonePay QR Code
+                  </h3>
+                  <div className="bg-card p-6 rounded-lg border text-center">
+                    <img 
+                      src={paymentQR} 
+                      alt="Payment QR Code" 
+                      className="w-48 h-48 mx-auto mb-4 border rounded-lg"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Scan to pay via PhonePay
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div className="bg-muted/30 p-4 rounded-lg border border-dashed">
+                <h4 className="font-semibold mb-3 flex items-center gap-2">
+                  <Info className="w-4 h-4" />
+                  After Payment Contact
+                </h4>
+                <div className="grid md:grid-cols-2 gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-primary" />
+                    <span>📧 mayurwaghchoure1995@gmail.com</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-primary" />
+                    <span>📱 WhatsApp: +91 88305 79377</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Instructions */}
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                <h4 className="font-semibold mb-2 text-yellow-800 dark:text-yellow-200">
+                  ⚠️ Important Instructions
+                </h4>
+                <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
+                  <li>• Complete payment before enrolling in any course</li>
+                  <li>• Include your name and course name in payment reference</li>
+                  <li>• Send payment confirmation to email or WhatsApp</li>
+                  <li>• Keep payment receipt for verification</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </main>
       <Footer />
     </div>

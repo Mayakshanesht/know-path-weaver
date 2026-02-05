@@ -27,7 +27,13 @@ import {
   Loader2,
   ArrowLeft,
   AlertCircle,
+  CreditCard,
+  QrCode,
+  Mail,
+  Phone,
+  Info,
 } from 'lucide-react';
+import paymentQR from '@/assets/payment-qr.png';
 
 interface LearningPathWithCapsules extends LearningPath {
   capsules: Capsule[];
@@ -389,30 +395,54 @@ export default function CourseDetail() {
                       )}
                     </div>
                   ) : (
-                    <Dialog open={enrollDialogOpen} onOpenChange={setEnrollDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button className="w-full" size="lg">
-                          Enroll Now
-                        </Button>
-                      </DialogTrigger>
+                    <div className="space-y-4">
+                      {/* Payment Required Notice */}
+                      <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                          <h4 className="font-semibold text-yellow-800 dark:text-yellow-200">
+                            Payment Required Before Enrollment
+                          </h4>
+                        </div>
+                        <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
+                          <li>• Complete payment using bank details below</li>
+                          <li>• Upload payment receipt for verification</li>
+                          <li>• Include reference code: <strong>ADAS_COURSE_2025</strong></li>
+                          <li>• After payment, send confirmation to provided contact</li>
+                        </ul>
+                      </div>
+
+                      <Dialog open={enrollDialogOpen} onOpenChange={setEnrollDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button className="w-full" size="lg">
+                            Pay & Enroll Now
+                          </Button>
+                        </DialogTrigger>
                       <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
                         <DialogHeader>
-                          <DialogTitle>Enroll in {course.title}</DialogTitle>
+                          <DialogTitle>Complete Payment & Enroll</DialogTitle>
                           <DialogDescription>
-                            Complete your payment via bank transfer and upload your receipt.
+                            Please complete payment using the bank details below, then upload your receipt to enroll.
                           </DialogDescription>
                         </DialogHeader>
 
                         <div className="flex-1 overflow-y-auto space-y-4">
                           {/* Bank Details */}
-                          {course.bank_details && (
-                            <div className="p-4 bg-secondary rounded-lg">
-                              <h4 className="font-medium mb-2">Bank Details</h4>
-                              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                                {course.bank_details}
-                              </p>
+                          <div className="p-4 bg-secondary rounded-lg">
+                            <h4 className="font-medium mb-3 flex items-center gap-2">
+                              <CreditCard className="w-5 h-5" />
+                              Bank Transfer Details
+                            </h4>
+                            <div className="grid grid-cols-1 gap-2 text-sm">
+                              <div><span className="font-medium">Account:</span> CloudBee Robotics</div>
+                              <div><span className="font-medium">Holder:</span> Rajendra Dyandev Waghachoure</div>
+                              <div><span className="font-medium">Bank:</span> Pune District Central Co-Op Bank Ltd., Pune</div>
+                              <div><span className="font-medium">Branch:</span> Ranjangaon Sandas</div>
+                              <div><span className="font-medium">A/C:</span> 183001600000130</div>
+                              <div><span className="font-medium">IFSC:</span> HDFC0CPDCCB</div>
+                              <div><span className="font-medium">Ref:</span> ADAS_COURSE_2025</div>
                             </div>
-                          )}
+                          </div>
 
                           {course.payment_reference_code && (
                             <div className="p-4 bg-accent/10 border border-accent/30 rounded-lg">
@@ -433,6 +463,40 @@ export default function CourseDetail() {
                               value={paymentReference}
                               onChange={(e) => setPaymentReference(e.target.value)}
                             />
+                          </div>
+
+                          {/* QR Code */}
+                          <div className="p-4 bg-accent/10 rounded-lg border border-accent/30">
+                            <h4 className="font-medium mb-3 text-center flex items-center justify-center gap-2">
+                              <QrCode className="w-5 h-5" />
+                              PhonePay QR Code
+                            </h4>
+                            <img 
+                              src={paymentQR} 
+                              alt="Payment QR Code" 
+                              className="w-32 h-32 mx-auto mb-2 border rounded-lg bg-white p-2"
+                            />
+                            <p className="text-xs text-muted-foreground text-center">
+                              Scan to pay via PhonePay
+                            </p>
+                          </div>
+
+                          {/* Contact Information */}
+                          <div className="p-4 bg-muted/30 rounded-lg border border-dashed">
+                            <h4 className="font-medium mb-2 text-center flex items-center justify-center gap-2">
+                              <Info className="w-4 h-4" />
+                              After Payment Contact
+                            </h4>
+                            <div className="grid grid-cols-1 gap-2 text-xs">
+                              <div className="flex items-center gap-1 justify-center">
+                                <Mail className="w-3 h-3 text-primary" />
+                                <span>📧 mayurwaghchoure1995@gmail.com</span>
+                              </div>
+                              <div className="flex items-center gap-1 justify-center">
+                                <Phone className="w-3 h-3 text-primary" />
+                                <span>📱 WhatsApp: +91 88305 79377</span>
+                              </div>
+                            </div>
                           </div>
 
                           {/* Receipt Upload */}
