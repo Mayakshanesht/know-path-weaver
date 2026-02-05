@@ -23,7 +23,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   IndianRupee,
-  DollarSign,
+  Euro,
   BookOpen,
   Upload,
   Copy,
@@ -33,6 +33,7 @@ import {
   AlertCircle,
   Mail,
   MessageCircle,
+  Lock,
 } from 'lucide-react';
 
 export default function MarketingCourseDetail() {
@@ -364,7 +365,7 @@ export default function MarketingCourseDetail() {
                     {course.priceInternational && (
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <DollarSign className="w-5 h-5" />
+                          <Euro className="w-5 h-5" />
                           <span className="text-sm text-muted-foreground">International</span>
                         </div>
                         <span className="text-2xl font-bold">€{course.priceInternational}</span>

@@ -9,7 +9,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BookOpen, Clock, IndianRupee, DollarSign } from 'lucide-react';
+import { BookOpen, Clock, IndianRupee, Euro } from 'lucide-react';
 
 export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -121,8 +121,8 @@ export default function Courses() {
                           <span>₹{course.price_india || 0}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <DollarSign className="w-4 h-4" />
-                          <span>${course.price_international || 0}</span>
+                          <Euro className="w-4 h-4" />
+                          <span>€{course.price_international || 0}</span>
                         </div>
                       </div>
                     </CardContent>

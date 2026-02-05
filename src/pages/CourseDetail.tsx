@@ -19,7 +19,7 @@ import {
   BookOpen,
   Clock,
   IndianRupee,
-  DollarSign,
+  Euro,
   Play,
   Lock,
   CheckCircle2,
@@ -333,10 +333,10 @@ export default function CourseDetail() {
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <DollarSign className="w-5 h-5" />
+                        <Euro className="w-5 h-5" />
                         <span className="text-sm text-muted-foreground">International</span>
                       </div>
-                      <span className="text-2xl font-bold">${course.price_international || 0}</span>
+                      <span className="text-2xl font-bold">€{course.price_international || 0}</span>
                     </div>
                   </div>
 

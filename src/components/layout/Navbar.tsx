@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import knowgraphLogo from '@/assets/knowgraph-logo.png';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,10 +39,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">K</span>
-            </div>
-            <span className="font-bold text-xl">KnowGraph</span>
+            <img src={knowgraphLogo} alt="KnowGraph" className="h-10 w-auto" />
           </Link>
 
           {/* Desktop Navigation */}
