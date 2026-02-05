@@ -38,6 +38,7 @@ const App = () => (
             <Route path="/quick-reset" element={<QuickPasswordReset />} />
             <Route path="/quiz/:quizId" element={<ProtectedRoute><Quiz /></ProtectedRoute>} />
             <Route path="/home" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
+            <Route path="/courses" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
             <Route path="/courses/:courseId" element={<CourseDetail />} />
             <Route path="/course/:slug" element={<MarketingCourseDetail />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

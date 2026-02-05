@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -42,6 +42,7 @@ interface LearningPathWithCapsules extends BaseLearningPathWithCapsules {
 export default function LearnCourse() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { authUser } = useAuth();
   const { toast } = useToast();
 
@@ -54,6 +55,27 @@ export default function LearnCourse() {
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [marking, setMarking] = useState(false);
+
+  const storageKey = courseId ? `kpw:lastCapsule:${courseId}` : null;
+
+  const persistCapsuleId = (capsuleId: string) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('capsule', capsuleId);
+        return next;
+      },
+      { replace: true }
+    );
+
+    if (storageKey) {
+      try {
+        localStorage.setItem(storageKey, capsuleId);
+      } catch {
+        // ignore
+      }
+    }
+  };
 
   useEffect(() => {
     if (courseId && authUser) {
@@ -184,6 +206,34 @@ export default function LearnCourse() {
 
     setLearningPaths(enrichedPaths);
 
+    const allCapsules = enrichedPaths.flatMap((p) => p.capsules);
+    const capsuleById = new Map(allCapsules.map((c) => [c.id, c] as const));
+
+    const capsuleParam = searchParams.get('capsule');
+    let storedCapsuleId: string | null = null;
+    if (storageKey) {
+      try {
+        storedCapsuleId = localStorage.getItem(storageKey);
+      } catch {
+        storedCapsuleId = null;
+      }
+    }
+
+    const preferredIds = [currentCapsule?.id, capsuleParam, storedCapsuleId].filter(
+      (v): v is string => Boolean(v)
+    );
+
+    for (const id of preferredIds) {
+      const preferred = capsuleById.get(id);
+      if (preferred && !preferred.isLocked) {
+        setCurrentCapsule(preferred);
+        persistCapsuleId(preferred.id);
+        await fetchCapsuleContent(preferred.id);
+        setLoading(false);
+        return;
+      }
+    }
+
     // Find first incomplete, unlocked capsule or first capsule
     let firstCapsule: CapsuleWithStatus | null = null;
     for (const path of enrichedPaths) {
@@ -193,6 +243,7 @@ export default function LearnCourse() {
         }
         if (!capsule.isCompleted && !capsule.isLocked) {
           setCurrentCapsule(capsule);
+          persistCapsuleId(capsule.id);
           fetchCapsuleContent(capsule.id);
           setLoading(false);
           return;
@@ -202,6 +253,7 @@ export default function LearnCourse() {
 
     setCurrentCapsule(firstCapsule);
     if (firstCapsule) {
+      persistCapsuleId(firstCapsule.id);
       fetchCapsuleContent(firstCapsule.id);
     }
     setLoading(false);
@@ -434,6 +486,7 @@ export default function LearnCourse() {
   const navigateToCapsule = async (capsule: CapsuleWithStatus) => {
     if (!capsule.isLocked) {
       setCurrentCapsule(capsule);
+      persistCapsuleId(capsule.id);
       await fetchCapsuleContent(capsule.id);
     }
   };
