@@ -418,7 +418,26 @@ export default function MarketingCourseDetail() {
                     )}
                   </div>
 
-                  {enrolled ? (
+                  {enrollmentStatus === 'approved' ? (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                        <div className="flex items-center gap-2 text-green-600 mb-2">
+                          <CheckCircle2 className="w-5 h-5" />
+                          <span className="font-semibold">Enrolled</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          You have full access to this course.
+                        </p>
+                      </div>
+                      {dbCourseId && (
+                        <Button asChild size="lg" className="w-full">
+                          <Link to={`/learn/${dbCourseId}`}>
+                            Continue Learning
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
+                  ) : enrollmentStatus === 'pending' || enrolled ? (
                     <div className="p-4 bg-warning/10 border border-warning/30 rounded-lg">
                       <div className="flex items-center gap-2 text-warning mb-2">
                         <AlertCircle className="w-5 h-5" />
@@ -428,13 +447,32 @@ export default function MarketingCourseDetail() {
                         Your enrollment is pending. You'll get access once payment is verified.
                       </p>
                     </div>
+                  ) : enrollmentStatus === 'rejected' ? (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
+                        <div className="flex items-center gap-2 text-destructive mb-2">
+                          <AlertCircle className="w-5 h-5" />
+                          <span className="font-semibold">Enrollment Rejected</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Please contact support for assistance.
+                        </p>
+                      </div>
+                      <Button
+                        size="lg"
+                        className="w-full"
+                        onClick={() => setEnrollDialogOpen(true)}
+                      >
+                        Try Again
+                      </Button>
+                    </div>
                   ) : (
                     <Button
                       size="lg"
                       className="w-full"
                       onClick={() => setEnrollDialogOpen(true)}
                     >
-                      {authUser ? 'Enroll Now / Proceed to Payment' : 'Join Beta to Access'}
+                      {authUser ? 'Enroll Now' : 'Sign In to Enroll'}
                     </Button>
                   )}
 
