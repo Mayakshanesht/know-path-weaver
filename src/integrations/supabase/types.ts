@@ -342,6 +342,169 @@ export type Database = {
           },
         ]
       }
+      quiz_attempts: {
+        Row: {
+          answers: Json | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          max_score: number | null
+          passed: boolean | null
+          quiz_id: string
+          score: number | null
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          answers?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          max_score?: number | null
+          passed?: boolean | null
+          quiz_id: string
+          score?: number | null
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          answers?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          max_score?: number | null
+          passed?: boolean | null
+          quiz_id?: string
+          score?: number | null
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_questions: {
+        Row: {
+          correct_answer: Json
+          created_at: string
+          explanation: string | null
+          id: string
+          options: Json | null
+          order_index: number
+          points: number | null
+          question_text: string
+          question_type: Database["public"]["Enums"]["question_type"]
+          quiz_id: string
+          updated_at: string
+        }
+        Insert: {
+          correct_answer: Json
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json | null
+          order_index?: number
+          points?: number | null
+          question_text: string
+          question_type?: Database["public"]["Enums"]["question_type"]
+          quiz_id: string
+          updated_at?: string
+        }
+        Update: {
+          correct_answer?: Json
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json | null
+          order_index?: number
+          points?: number | null
+          question_text?: string
+          question_type?: Database["public"]["Enums"]["question_type"]
+          quiz_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_questions_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quizzes: {
+        Row: {
+          capsule_id: string | null
+          course_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_graded: boolean | null
+          is_published: boolean | null
+          max_attempts: number | null
+          order_index: number
+          passing_score: number | null
+          quiz_type: Database["public"]["Enums"]["quiz_type"]
+          time_limit_minutes: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          capsule_id?: string | null
+          course_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_graded?: boolean | null
+          is_published?: boolean | null
+          max_attempts?: number | null
+          order_index?: number
+          passing_score?: number | null
+          quiz_type?: Database["public"]["Enums"]["quiz_type"]
+          time_limit_minutes?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          capsule_id?: string | null
+          course_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_graded?: boolean | null
+          is_published?: boolean | null
+          max_attempts?: number | null
+          order_index?: number
+          passing_score?: number | null
+          quiz_type?: Database["public"]["Enums"]["quiz_type"]
+          time_limit_minutes?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quizzes_capsule_id_fkey"
+            columns: ["capsule_id"]
+            isOneToOne: false
+            referencedRelation: "capsules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quizzes_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -388,6 +551,8 @@ export type Database = {
         | "image"
         | "pdf"
       enrollment_status: "pending" | "approved" | "rejected"
+      question_type: "mcq" | "short_answer" | "true_false" | "multiple_select"
+      quiz_type: "quiz" | "assignment"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -527,6 +692,8 @@ export const Constants = {
         "pdf",
       ],
       enrollment_status: ["pending", "approved", "rejected"],
+      question_type: ["mcq", "short_answer", "true_false", "multiple_select"],
+      quiz_type: ["quiz", "assignment"],
     },
   },
 } as const
