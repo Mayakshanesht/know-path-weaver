@@ -63,7 +63,7 @@ export default function QuizPage() {
       return;
     }
 
-    setQuiz(quizData);
+    setQuiz(quizData as unknown as QuizWithQuestions);
 
     // Check for existing attempt
     const { data: attemptData } = await supabase
