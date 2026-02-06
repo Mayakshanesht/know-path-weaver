@@ -71,7 +71,7 @@ export default function QuizPage() {
       .select('*')
       .eq('quiz_id', quizId)
       .eq('user_id', authUser.id)
-      .is('completed_at', 'not.null')
+      .not('completed_at', 'is', null)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
