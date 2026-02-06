@@ -1,9 +1,24 @@
+import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { BookOpen } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Index() {
+  useEffect(() => {
+    // When user clicks the email verification link, Supabase may redirect back with ?code=...
+    // Exchange it for a session (no UI needed) and then clean the URL.
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (!code) return;
+
+    (async () => {
+      await supabase.auth.exchangeCodeForSession(window.location.href);
+      window.history.replaceState({}, document.title, '/');
+    })();
+  }, []);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-background p-4">
       <motion.div

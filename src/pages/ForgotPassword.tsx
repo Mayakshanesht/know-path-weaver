@@ -16,12 +16,14 @@ export default function ForgotPassword() {
   const [emailSent, setEmailSent] = useState(false);
   const { toast } = useToast();
 
+  const publicSiteUrl = (import.meta as any).env?.VITE_PUBLIC_SITE_URL || window.location.origin;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${publicSiteUrl}/reset-password`,
     });
 
     if (error) {

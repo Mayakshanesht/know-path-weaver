@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { authUser, loading } = useAuth();
+  const { authUser, loading, userDataLoading } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -21,6 +21,14 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
 
   if (!authUser) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (requireAdmin && userDataLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (requireAdmin && !authUser.isAdmin) {

@@ -16,6 +16,8 @@ export default function QuickPasswordReset() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const publicSiteUrl = (import.meta as any).env?.VITE_PUBLIC_SITE_URL || window.location.origin;
+
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -32,7 +34,7 @@ export default function QuickPasswordReset() {
 
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${publicSiteUrl}/reset-password`,
       });
 
       if (resetError) {

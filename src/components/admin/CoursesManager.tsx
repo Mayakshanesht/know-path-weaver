@@ -49,6 +49,8 @@ export default function CoursesManager() {
   const [courseDialogOpen, setCourseDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const draftStorageKey = 'admin:coursesManager:draft:v1';
+
   // Course form state
   const [formData, setFormData] = useState({
     title: '',
@@ -65,6 +67,44 @@ export default function CoursesManager() {
   useEffect(() => {
     fetchCourses();
   }, []);
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem(draftStorageKey);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        courseDialogOpen?: boolean;
+        editingCourseId?: string | null;
+        formData?: typeof formData;
+      };
+
+      if (parsed.formData) {
+        setFormData(parsed.formData);
+      }
+
+      if (parsed.courseDialogOpen) {
+        setCourseDialogOpen(true);
+      }
+
+      // We'll resolve editing course after courses are fetched.
+      if (parsed.editingCourseId) {
+        setEditingCourse((prev) => prev);
+      }
+    } catch {
+      sessionStorage.removeItem(draftStorageKey);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const payload = {
+      courseDialogOpen,
+      editingCourseId: editingCourse?.id ?? null,
+      formData,
+    };
+    sessionStorage.setItem(draftStorageKey, JSON.stringify(payload));
+  }, [courseDialogOpen, editingCourse?.id, formData]);
 
   const fetchCourses = async () => {
     const { data, error } = await supabase
@@ -86,6 +126,20 @@ export default function CoursesManager() {
           })),
       }));
       setCourses(sortedCourses);
+
+      // If we have a draft that was editing an existing course, restore the object now.
+      const raw = sessionStorage.getItem(draftStorageKey);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as { editingCourseId?: string | null };
+          if (parsed.editingCourseId) {
+            const found = sortedCourses.find((c) => c.id === parsed.editingCourseId) ?? null;
+            setEditingCourse(found);
+          }
+        } catch {
+          // ignore
+        }
+      }
     }
     setLoading(false);
   };
@@ -587,12 +641,37 @@ function CapsuleRow({ capsule, onRefresh }: { capsule: Capsule; onRefresh: () =>
   const [contentOpen, setContentOpen] = useState(false);
   const [capsuleContent, setCapsuleContent] = useState<any[]>([]);
   const [loadingContent, setLoadingContent] = useState(false);
+  const capsuleDraftKey = `admin:capsuleRow:draft:v1:${capsule.id}`;
   const [editData, setEditData] = useState({
     title: capsule.title,
     description: capsule.description || '',
     drive_file_id: capsule.drive_file_id || '',
     duration_minutes: capsule.duration_minutes || 0,
   });
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem(capsuleDraftKey);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as { contentOpen?: boolean };
+      if (parsed.contentOpen) {
+        // Restore the editor open state and refetch latest capsule content.
+        // Don't set contentOpen directly; use the same open flow.
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        (async () => {
+          await fetchCapsuleContent();
+          setContentOpen(true);
+        })();
+      }
+    } catch {
+      sessionStorage.removeItem(capsuleDraftKey);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem(capsuleDraftKey, JSON.stringify({ contentOpen }));
+  }, [capsuleDraftKey, contentOpen]);
 
   const fetchCapsuleContent = async () => {
     setLoadingContent(true);
@@ -703,7 +782,13 @@ function CapsuleRow({ capsule, onRefresh }: { capsule: Capsule; onRefresh: () =>
             onRefresh();
           }}
           open={contentOpen}
-          onOpenChange={setContentOpen}
+          onOpenChange={(nextOpen) => {
+            // Switching browser tabs can trigger focus/blur events that Radix Dialog
+            // may interpret as an outside interaction and close. Don't close the
+            // capsule editor just because the document became hidden.
+            if (!nextOpen && document.hidden) return;
+            setContentOpen(nextOpen);
+          }}
         />
       </Suspense>
     </>

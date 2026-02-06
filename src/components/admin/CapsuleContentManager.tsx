@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CapsuleContent, ContentType } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -115,6 +115,68 @@ export default function CapsuleContentManager({
     content_value: '',
     description: '',
   });
+
+  const draftKey = `admin:capsuleContentManager:draft:v1:${capsuleId}`;
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem(draftKey);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        open?: boolean;
+        adding?: boolean;
+        editingContentId?: string | null;
+        formData?: typeof formData;
+      };
+
+      if (parsed.open) {
+        onOpenChange(true);
+      }
+
+      if (typeof parsed.adding === 'boolean') {
+        setAdding(parsed.adding);
+      }
+
+      if (parsed.formData) {
+        setFormData(parsed.formData);
+      }
+
+      if (parsed.editingContentId) {
+        const found = content.find((c) => c.id === parsed.editingContentId) ?? null;
+        setEditingContent(found);
+      }
+    } catch {
+      sessionStorage.removeItem(draftKey);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // If content list arrives after mount, resolve editingContent from stored id.
+    const raw = sessionStorage.getItem(draftKey);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as { editingContentId?: string | null };
+      if (!parsed.editingContentId) return;
+      setEditingContent((prev) => {
+        if (prev?.id === parsed.editingContentId) return prev;
+        return content.find((c) => c.id === parsed.editingContentId) ?? null;
+      });
+    } catch {
+      // ignore
+    }
+  }, [content, draftKey]);
+
+  useEffect(() => {
+    const payload = {
+      open,
+      adding,
+      editingContentId: editingContent?.id ?? null,
+      formData,
+    };
+    sessionStorage.setItem(draftKey, JSON.stringify(payload));
+  }, [adding, draftKey, editingContent?.id, formData, open]);
 
   const resetForm = () => {
     setFormData({

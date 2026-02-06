@@ -30,19 +30,26 @@ export default function ResetPassword() {
     // Check if we have a valid session from reset link
     const checkSession = async () => {
       try {
-        // Get the current hash fragment to check for reset tokens
+        const code = searchParams.get('code');
+        const type = searchParams.get('type');
+
+        // Newer Supabase links often come as ?code=... (PKCE). Exchange it for a session.
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(window.location.href);
+          if (exchangeError) {
+            toast({
+              title: 'Invalid or expired link',
+              description: 'Please request a new password reset link.',
+              variant: 'destructive',
+            });
+            navigate('/forgot-password');
+            return;
+          }
+        }
+
+        // Backward-compatible: hash fragment tokens (#access_token=...)
         const hash = window.location.hash;
         const accessToken = new URLSearchParams(hash.substring(1)).get('access_token');
-        
-        if (!accessToken) {
-          toast({
-            title: 'Invalid or expired link',
-            description: 'Please request a new password reset link.',
-            variant: 'destructive',
-          });
-          navigate('/forgot-password');
-          return;
-        }
 
         // Verify the session is valid for password reset
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -57,17 +64,29 @@ export default function ResetPassword() {
           return;
         }
 
-        // Check if this is a password recovery session
-        const { data: { user } } = await supabase.auth.getUser(accessToken);
-        
-        if (!user) {
+        // Optional sanity check: if link says it's not recovery, don't allow reset.
+        if (type && type !== 'recovery') {
           toast({
-            title: 'Invalid session',
+            title: 'Invalid link type',
             description: 'Please request a new password reset link.',
             variant: 'destructive',
           });
           navigate('/forgot-password');
           return;
+        }
+
+        // If we're on the old hash-token flow and accessToken exists, validate user.
+        if (accessToken) {
+          const { data: { user } } = await supabase.auth.getUser(accessToken);
+          if (!user) {
+            toast({
+              title: 'Invalid session',
+              description: 'Please request a new password reset link.',
+              variant: 'destructive',
+            });
+            navigate('/forgot-password');
+            return;
+          }
         }
 
         setIsValidToken(true);
@@ -84,7 +103,7 @@ export default function ResetPassword() {
     };
     
     checkSession();
-  }, [navigate, toast]);
+  }, [navigate, toast, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
