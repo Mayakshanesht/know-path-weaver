@@ -163,7 +163,7 @@ export default function QuizPage() {
       })
       .eq('quiz_id', quizId)
       .eq('user_id', authUser.id)
-      .is('completed_at', 'null');
+      .is('completed_at', null);
 
     if (updateError) {
       toast({

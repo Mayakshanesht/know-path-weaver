@@ -49,7 +49,7 @@ export default function CoursesManager() {
   const [courseDialogOpen, setCourseDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const draftStorageKey = 'admin:coursesManager:draft:v1';
+  const draftStorageKey = 'admin:coursesManager:draft:v2';
 
   // Course form state
   const [formData, setFormData] = useState({

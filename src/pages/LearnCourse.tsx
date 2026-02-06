@@ -197,6 +197,7 @@ export default function LearnCourse() {
           return {
             ...capsule,
             progress,
+            is_locked: isLocked,
             isLocked,
             isCompleted,
           };

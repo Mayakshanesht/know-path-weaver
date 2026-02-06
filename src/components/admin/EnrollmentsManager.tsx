@@ -210,7 +210,7 @@ export default function EnrollmentsManager() {
         description: `${studentName} has been removed from the course.`,
       });
       setSelectedEnrollment(null);
-      fetchData(); // Refresh the enrollments list
+      fetchEnrollments(); // Refresh the enrollments list
     }
 
     setProcessing(false);

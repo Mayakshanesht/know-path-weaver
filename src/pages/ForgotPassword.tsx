@@ -16,7 +16,7 @@ export default function ForgotPassword() {
   const [emailSent, setEmailSent] = useState(false);
   const { toast } = useToast();
 
-  const publicSiteUrl = (import.meta as any).env?.VITE_PUBLIC_SITE_URL || window.location.origin;
+  const publicSiteUrl = 'https://know-path-weaver.vercel.app';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
