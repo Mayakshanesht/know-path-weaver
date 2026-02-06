@@ -64,8 +64,8 @@ export default function Signup() {
     setIsLoading(false);
   };
 
-  const handleStartLearning = () => {
-    window.location.href = '/home';
+  const handleGoToLogin = () => {
+    navigate('/login');
   };
 
   if (showSuccess) {
