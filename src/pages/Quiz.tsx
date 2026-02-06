@@ -77,7 +77,7 @@ export default function QuizPage() {
       .maybeSingle();
 
     if (attemptData) {
-      setAttempt(attemptData);
+      setAttempt(attemptData as unknown as QuizAttempt);
     }
 
     setLoading(false);
