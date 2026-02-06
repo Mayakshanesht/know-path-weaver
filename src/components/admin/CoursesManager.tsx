@@ -670,7 +670,11 @@ function CapsuleRow({ capsule, onRefresh }: { capsule: Capsule; onRefresh: () =>
   }, []);
 
   useEffect(() => {
-    sessionStorage.setItem(capsuleDraftKey, JSON.stringify({ contentOpen }));
+    if (contentOpen) {
+      sessionStorage.setItem(capsuleDraftKey, JSON.stringify({ contentOpen }));
+    } else {
+      sessionStorage.removeItem(capsuleDraftKey);
+    }
   }, [capsuleDraftKey, contentOpen]);
 
   const fetchCapsuleContent = async () => {
