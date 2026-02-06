@@ -113,12 +113,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const publicSiteUrl = (import.meta as any).env?.VITE_PUBLIC_SITE_URL || window.location.origin;
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: publicSiteUrl,
+        emailRedirectTo: 'https://know-path-weaver.vercel.app/login',
         data: {
           full_name: fullName
         }

@@ -64,8 +64,8 @@ export default function Signup() {
     setIsLoading(false);
   };
 
-  const handleStartLearning = () => {
-    window.location.href = '/home';
+  const handleGoToLogin = () => {
+    navigate('/login');
   };
 
   if (showSuccess) {
@@ -82,18 +82,18 @@ export default function Signup() {
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
                 <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
-              <CardTitle className="text-2xl">Account Created!</CardTitle>
+              <CardTitle className="text-2xl">Check Your Email!</CardTitle>
               <CardDescription>
-                Your account has been created successfully. You're ready to start learning.
+                We've sent a verification link to <strong>{email}</strong>. Please verify your email, then sign in to start learning.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
               <Button 
-                onClick={handleStartLearning}
+                onClick={handleGoToLogin}
                 size="lg"
                 className="w-full"
               >
-                Start Learning
+                Go to Sign In
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </CardContent>

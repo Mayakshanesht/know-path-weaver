@@ -49,7 +49,7 @@ export default function CoursesManager() {
   const [courseDialogOpen, setCourseDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const draftStorageKey = 'admin:coursesManager:draft:v1';
+  const draftStorageKey = 'admin:coursesManager:draft:v2';
 
   // Course form state
   const [formData, setFormData] = useState({
@@ -670,7 +670,11 @@ function CapsuleRow({ capsule, onRefresh }: { capsule: Capsule; onRefresh: () =>
   }, []);
 
   useEffect(() => {
-    sessionStorage.setItem(capsuleDraftKey, JSON.stringify({ contentOpen }));
+    if (contentOpen) {
+      sessionStorage.setItem(capsuleDraftKey, JSON.stringify({ contentOpen }));
+    } else {
+      sessionStorage.removeItem(capsuleDraftKey);
+    }
   }, [capsuleDraftKey, contentOpen]);
 
   const fetchCapsuleContent = async () => {

@@ -63,7 +63,7 @@ export default function QuizPage() {
       return;
     }
 
-    setQuiz(quizData);
+    setQuiz(quizData as unknown as QuizWithQuestions);
 
     // Check for existing attempt
     const { data: attemptData } = await supabase
@@ -71,13 +71,13 @@ export default function QuizPage() {
       .select('*')
       .eq('quiz_id', quizId)
       .eq('user_id', authUser.id)
-      .is('completed_at', 'not.null')
+      .not('completed_at', 'is', null)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (attemptData) {
-      setAttempt(attemptData);
+      setAttempt(attemptData as unknown as QuizAttempt);
     }
 
     setLoading(false);
@@ -163,7 +163,7 @@ export default function QuizPage() {
       })
       .eq('quiz_id', quizId)
       .eq('user_id', authUser.id)
-      .is('completed_at', 'null');
+      .is('completed_at', null);
 
     if (updateError) {
       toast({
