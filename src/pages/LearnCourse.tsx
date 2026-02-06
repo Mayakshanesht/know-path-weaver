@@ -31,8 +31,9 @@ import {
   FileType,
 } from 'lucide-react';
 
-interface CapsuleWithStatus extends CapsuleWithProgress {
+interface CapsuleWithStatus extends Omit<CapsuleWithProgress, 'is_locked'> {
   isCompleted: boolean;
+  isLocked: boolean;
 }
 
 interface LearningPathWithCapsules extends BaseLearningPathWithCapsules {
