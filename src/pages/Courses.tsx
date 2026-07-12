@@ -9,7 +9,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BookOpen, Clock, IndianRupee, Euro, Info, CreditCard, QrCode, Mail, Phone } from 'lucide-react';
+import { BookOpen, ArrowRight, IndianRupee, Euro, Info, CreditCard, QrCode, Mail, Phone } from 'lucide-react';
 import paymentQR from '@/assets/payment-qr.png?url';
 import aiThumb from '@/assets/thumbnails/ai-bootcamp.svg?url';
 import mlThumb from '@/assets/thumbnails/ml-fundamentals.svg?url';
@@ -47,33 +47,79 @@ export default function Courses() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-1 py-12">
-        <div className="container mx-auto px-4">
-          <motion.div
-            className="text-center mb-12"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <h1 className="text-4xl font-bold mb-4">Explore Courses</h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Choose from our structured learning paths and start your journey
-            </p>
-          </motion.div>
+      <main className="flex-1 bg-slate-950 text-slate-50">
+        <section className="relative overflow-hidden py-14">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.17),_transparent_20%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.16),_transparent_25%)]" />
+          <div className="container mx-auto px-4 relative">
+            <motion.div
+              className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-10 shadow-2xl shadow-slate-950/40 backdrop-blur-xl"
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] items-center">
+                <div>
+                  <p className="inline-flex items-center gap-2 rounded-full bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-300 ring-1 ring-cyan-300/10">
+                    <span className="h-2 w-2 rounded-full bg-cyan-300" />
+                    Discover the latest courses
+                  </p>
+                  <h1 className="mt-6 text-5xl font-bold tracking-tight">Explore courses built for graph-powered learning.</h1>
+                  <p className="mt-4 max-w-2xl text-lg text-slate-300">
+                    Browse curated learning paths with clear outcomes, capsule counts, and real project focus.
+                  </p>
+                </div>
 
+                <div className="rounded-[2rem] border border-white/10 bg-slate-950/90 p-6">
+                  <div className="text-sm uppercase tracking-[0.32em] text-slate-400">New this week</div>
+                  <div className="mt-4 space-y-4">
+                    <div className="rounded-3xl bg-slate-900/90 p-4 ring-1 ring-white/10">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-slate-400">AI Bootcamp</p>
+                          <p className="mt-1 text-xl font-semibold text-white">Autonomous Driving</p>
+                        </div>
+                        <Badge variant="secondary">Featured</Badge>
+                      </div>
+                      <p className="mt-3 text-sm text-slate-400">A project-first course with capsule-based progression and complete learning paths.</p>
+                    </div>
+                    <div className="rounded-3xl bg-slate-900/90 p-4 ring-1 ring-white/10">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-slate-400">Launchpad</p>
+                          <p className="mt-1 text-xl font-semibold text-white">ML Fundamentals</p>
+                        </div>
+                        <Badge variant="outline">Trending</Badge>
+                      </div>
+                      <p className="mt-3 text-sm text-slate-400">Hands-on modules for real-world machine learning applications.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        <div className="container mx-auto px-4">
           {loading ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(6)].map((_, i) => (
-                <Card key={i} className="overflow-hidden">
-                  <Skeleton className="h-48 w-full" />
-                  <CardHeader>
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-4 w-full mt-2" />
-                  </CardHeader>
-                  <CardFooter>
-                    <Skeleton className="h-10 w-full" />
-                  </CardFooter>
-                </Card>
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: i * 0.04 }}
+                >
+                  <Card className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-900/90 shadow-lg">
+                    <Skeleton className="h-48 w-full" />
+                    <CardHeader>
+                      <Skeleton className="h-6 w-3/4" />
+                      <Skeleton className="h-4 w-full mt-2" />
+                    </CardHeader>
+                    <CardFooter>
+                      <Skeleton className="h-10 w-full" />
+                    </CardFooter>
+                  </Card>
+                </motion.div>
               ))}
             </div>
           ) : courses.length === 0 ? (
@@ -104,81 +150,78 @@ export default function Courses() {
                     key={course.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    whileHover={{ y: -6 }}
-                    transition={{ duration: 0.6, delay: i * 0.06 }}
+                    whileHover={{ y: -10 }}
+                    transition={{ duration: 0.6, delay: i * 0.05 }}
                   >
-                    <Card className="overflow-hidden h-full flex flex-col transform-gpu will-change-transform hover:shadow-xl transition-shadow duration-300">
-                      <div className="relative h-48 bg-gradient-to-br from-primary/20 to-accent/20 group overflow-hidden">
+                    <Card className="overflow-hidden h-full flex flex-col rounded-[1.75rem] border border-white/10 bg-slate-900/90 shadow-2xl shadow-slate-950/20 transform-gpu transition duration-300 hover:-translate-y-1 hover:shadow-2xl">
+                      <div className="relative h-56 overflow-hidden bg-slate-950/70">
                         {course.thumbnail_url ? (
                           <img
                             src={course.thumbnail_url}
                             alt={course.title}
                             loading="lazy"
-                            className="w-full h-full object-cover transform transition-transform duration-500 group-hover:scale-105"
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                           />
                         ) : curated ? (
-                          <img src={curated} alt={course.title} className="w-full h-full object-cover" />
+                          <img src={curated} alt={course.title} className="h-full w-full object-cover" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/12 to-accent/12">
-                            <motion.svg width="140" height="120" viewBox="0 0 140 120" initial={{ scale: 0.98 }} animate={{ scale: [0.98, 1.02, 0.99] }} transition={{ duration: 6, repeat: Infinity }}>
-                              <defs>
-                                <linearGradient id={`cgrad-${i}`} x1="0" x2="1">
-                                  <stop offset="0%" stopColor="#7c3aed" />
-                                  <stop offset="100%" stopColor="#06b6d4" />
-                                </linearGradient>
-                              </defs>
-                              <rect x="0" y="0" width="140" height="120" rx="10" fill={`url(#cgrad-${i})`} opacity="0.12" />
-                              <motion.circle cx="30" cy="40" r="12" fill="#fff" animate={{ y: [0, -6, 0] }} transition={{ duration: 3, repeat: Infinity }} />
-                              <motion.circle cx="110" cy="50" r="8" fill="#fff" animate={{ y: [0, 5, 0] }} transition={{ duration: 4, repeat: Infinity }} />
-                              <circle cx="70" cy="85" r="10" fill="#fff" opacity="0.9" />
-                              <text x="24" y="95" fontSize="28" fontWeight="700" fill="#fff">{String((course.title || 'KG').split(' ').map(s => s[0]).join('').slice(0,3))}</text>
-                            </motion.svg>
+                          <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary/20 to-accent/20">
+                            <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-4 text-center">
+                              <motion.div
+                                initial={{ scale: 0.95 }}
+                                animate={{ scale: [0.95, 1.05, 0.98] }}
+                                transition={{ duration: 3.5, repeat: Infinity }}
+                                className="mx-auto mb-3 h-16 w-16 rounded-full bg-cyan-400/15"
+                              />
+                              <p className="text-sm text-slate-200">{String((course.title || 'KG').split(' ').map((s) => s[0]).join('').slice(0, 3))}</p>
+                            </div>
                           </div>
                         )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-80" />
-                        <Badge className="absolute top-3 left-3 bg-accent text-accent-foreground">Beta</Badge>
-                        <div className="absolute bottom-3 right-3 bg-gradient-to-r from-black/40 to-transparent text-white text-xs px-3 py-1 rounded">Final Projects • {course.capsules_count ?? 0}</div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                        <Badge className="absolute top-4 left-4 bg-cyan-500 text-cyan-950">Featured</Badge>
+                        <div className="absolute bottom-4 right-4 rounded-full bg-black/60 px-3 py-1 text-xs text-slate-100">{course.capsules_count ?? 0} capsules</div>
                       </div>
 
-                      <CardHeader className="flex-1">
-                        <h3 className="text-xl font-semibold line-clamp-2">{course.title}</h3>
-                        <p className="text-muted-foreground line-clamp-3 mt-2">{course.description || 'No description available'}</p>
+                      <CardHeader className="flex-1 pt-5">
+                        <h3 className="text-2xl font-semibold leading-snug text-white">{course.title}</h3>
+                        <p className="mt-3 text-sm leading-6 text-slate-400 line-clamp-3">{course.description || 'No description available'}</p>
                       </CardHeader>
 
-                      <CardContent>
-                        <div className="flex items-center justify-between gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-1">
-                              <IndianRupee className="w-4 h-4" />
-                              <span className="font-medium">₹{course.price_india || 0}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Euro className="w-4 h-4" />
-                              <span className="font-medium">€{course.price_international || 0}</span>
-                            </div>
+                      <CardContent className="space-y-4 pt-0">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-3xl bg-slate-950/85 p-4 text-sm text-slate-300 ring-1 ring-white/5">
+                            <div className="font-medium text-slate-100">Modules</div>
+                            <div className="mt-2 text-lg font-semibold">{course.modules_count ?? 0}</div>
                           </div>
-                          <div className="text-xs text-muted-foreground">{course.modules_count ?? 0} modules • {course.capsules_count ?? 0} capsules</div>
+                          <div className="rounded-3xl bg-slate-950/85 p-4 text-sm text-slate-300 ring-1 ring-white/5">
+                            <div className="font-medium text-slate-100">Duration</div>
+                            <div className="mt-2 text-lg font-semibold">{Math.max(4, course.modules_count ?? 1)} weeks</div>
+                          </div>
                         </div>
-
-                        {(course.bank_details || course.payment_reference_code) && (
-                          <div className="mt-4 rounded-lg border bg-muted/30 p-3 space-y-2">
-                            {course.payment_reference_code && (
-                              <div className="flex items-center justify-between gap-2 text-xs">
-                                <span className="text-muted-foreground">Reference</span>
-                                <span className="font-mono">{course.payment_reference_code}</span>
-                              </div>
-                            )}
-                            {course.bank_details && (
-                              <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4">{course.bank_details}</p>
-                            )}
-                            <p className="text-xs text-muted-foreground">Pay first, then enroll from the course page.</p>
+                        <div className="rounded-3xl bg-slate-950/85 p-4 text-sm text-slate-300 ring-1 ring-white/5">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-medium text-slate-100">Pricing</span>
+                            <span className="text-slate-400">{course.is_published ? 'Live' : 'Draft'}</span>
                           </div>
-                        )}
+                          <div className="mt-3 flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                              <IndianRupee className="w-4 h-4 text-cyan-300" />
+                              <span className="font-semibold text-white">₹{course.price_india || 0}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Euro className="w-4 h-4 text-violet-300" />
+                              <span className="font-semibold text-white">€{course.price_international || 0}</span>
+                            </div>
+                          </div>
+                        </div>
                       </CardContent>
 
-                      <CardFooter>
-                        <Button asChild className="w-full">
-                          <Link to={`/courses/${course.id}`}>View Course</Link>
+                      <CardFooter className="pt-0">
+                        <Button asChild className="w-full bg-cyan-500 text-slate-950 hover:bg-cyan-400">
+                          <Link to={`/courses/${course.id}`} className="inline-flex items-center justify-center gap-2">
+                            View course
+                            <ArrowRight className="w-4 h-4" />
+                          </Link>
                         </Button>
                       </CardFooter>
                     </Card>

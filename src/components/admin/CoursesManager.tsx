@@ -440,6 +440,7 @@ export default function CoursesManager() {
               onEdit={() => openCourseDialog(course)}
               onDelete={() => handleDeleteCourse(course.id)}
               onRefresh={fetchCourses}
+              liveMessage={liveMessage}
               setLiveMessage={setLiveMessage}
             />
           ))}
@@ -455,12 +456,14 @@ function CourseCard({
   onEdit,
   onDelete,
   onRefresh,
+  liveMessage,
   setLiveMessage,
 }: {
   course: CourseWithPaths;
   onEdit: () => void;
   onDelete: () => void;
   onRefresh: () => void;
+  liveMessage?: string;
   setLiveMessage?: (msg: string) => void;
 }) {
   const { toast } = useToast();
