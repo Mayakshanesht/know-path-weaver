@@ -36,11 +36,49 @@ import {
 interface CapsuleWithStatus extends Omit<CapsuleWithProgress, 'is_locked'> {
   isCompleted: boolean;
   isLocked: boolean;
+  isCertificate?: boolean;
 }
 
 interface LearningPathWithCapsules extends BaseLearningPathWithCapsules {
   capsules: CapsuleWithStatus[];
 }
+
+const isCertificateCapsule = (capsule: CapsuleWithStatus | null): capsule is CapsuleWithStatus & { isCertificate: true } =>
+  Boolean(capsule?.isCertificate);
+
+const createCertificateModule = (
+  learningPath: LearningPathWithCapsules,
+  unlocked: boolean
+): CapsuleWithStatus => ({
+  id: `certificate-${learningPath.course_id}`,
+  learning_path_id: learningPath.id,
+  title: 'Certificate of Completion',
+  description: 'Claim your course completion certificate once every lesson is finished.',
+  duration_minutes: 0,
+  drive_file_id: null,
+  drive_file_name: null,
+  drive_file_type: null,
+  order_index: learningPath.capsules.length,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  progress: null,
+  isLocked: !unlocked,
+  isCompleted: unlocked,
+  isCertificate: true,
+});
+
+const appendCertificateModule = (
+  paths: LearningPathWithCapsules[],
+  unlocked: boolean
+): LearningPathWithCapsules[] => {
+  if (!paths.length) return paths;
+
+  return paths.map((path, index) =>
+    index === paths.length - 1
+      ? { ...path, capsules: [...path.capsules, createCertificateModule(path, unlocked)] }
+      : path
+  );
+};
 
 export default function LearnCourse() {
   const { courseId } = useParams<{ courseId: string }>();
@@ -208,9 +246,17 @@ export default function LearnCourse() {
       return { ...path, capsules };
     });
 
-    setLearningPaths(enrichedPaths);
+    const totalCapsules = enrichedPaths.reduce((acc, path) => acc + path.capsules.length, 0);
+    const completedCapsulesCount = enrichedPaths.reduce(
+      (acc, path) => acc + path.capsules.filter((c) => c.isCompleted).length,
+      0
+    );
+    const isCourseCompleted = totalCapsules > 0 && totalCapsules === completedCapsulesCount;
 
-    const allCapsules = enrichedPaths.flatMap((p) => p.capsules);
+    const pathsWithCertificate = appendCertificateModule(enrichedPaths, isCourseCompleted);
+    setLearningPaths(pathsWithCertificate);
+
+    const allCapsules = pathsWithCertificate.flatMap((p) => p.capsules);
     const capsuleById = new Map(allCapsules.map((c) => [c.id, c] as const));
 
     const capsuleParam = searchParams.get('capsule');
@@ -227,12 +273,27 @@ export default function LearnCourse() {
       (v): v is string => Boolean(v)
     );
 
+    if (isCourseCompleted) {
+      const certificateCapsule = allCapsules.find((capsule) => capsule.isCertificate);
+      if (certificateCapsule) {
+        setCurrentCapsule(certificateCapsule);
+        persistCapsuleId(certificateCapsule.id);
+        setCapsuleContent([]);
+        setLoading(false);
+        return;
+      }
+    }
+
     for (const id of preferredIds) {
       const preferred = capsuleById.get(id);
       if (preferred && !preferred.isLocked) {
         setCurrentCapsule(preferred);
         persistCapsuleId(preferred.id);
-        await fetchCapsuleContent(preferred.id);
+        if (!preferred.isCertificate) {
+          await fetchCapsuleContent(preferred.id);
+        } else {
+          setCapsuleContent([]);
+        }
         setLoading(false);
         return;
       }
@@ -373,7 +434,6 @@ export default function LearnCourse() {
           <iframe
             src={`https://drive.google.com/file/d/${content.content_value}/preview`}
             className="w-full h-full border-0"
-            allow="autoplay; encrypted-media; fullscreen"
             allowFullScreen
             referrerPolicy="no-referrer-when-downgrade"
             sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-presentation allow-top-navigation"
@@ -403,7 +463,7 @@ export default function LearnCourse() {
             <iframe
               src={getYoutubeEmbedUrl(content.content_value)}
               className="w-full h-full border-0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allow="accelerometer; clipboard-write; gyroscope; picture-in-picture; web-share"
               allowFullScreen
               title={content.title || 'YouTube Video'}
             />
@@ -514,7 +574,11 @@ export default function LearnCourse() {
     if (!capsule.isLocked) {
       setCurrentCapsule(capsule);
       persistCapsuleId(capsule.id);
-      await fetchCapsuleContent(capsule.id);
+      if (!capsule.isCertificate) {
+        await fetchCapsuleContent(capsule.id);
+      } else {
+        setCapsuleContent([]);
+      }
     }
   };
 
@@ -553,11 +617,9 @@ export default function LearnCourse() {
   };
 
   // Calculate overall progress
-  const totalCapsules = learningPaths.reduce((acc, p) => acc + p.capsules.length, 0);
-  const completedCapsules = learningPaths.reduce(
-    (acc, p) => acc + p.capsules.filter((c) => c.isCompleted).length,
-    0
-  );
+  const actualCapsules = learningPaths.flatMap((p) => p.capsules.filter((c) => !c.isCertificate));
+  const totalCapsules = actualCapsules.length;
+  const completedCapsules = actualCapsules.filter((c) => c.isCompleted).length;
   const overallProgress = totalCapsules > 0 ? Math.round((completedCapsules / totalCapsules) * 100) : 0;
   const courseCompleted = totalCapsules > 0 && overallProgress === 100;
 
@@ -679,7 +741,7 @@ export default function LearnCourse() {
               <Button
                 onClick={() =>
                   downloadCertificate({
-                    studentName: authUser?.profile?.full_name || 'Learner',
+                    studentName: authUser?.profile?.full_name || authUser?.email || 'Learner',
                     courseTitle: course?.title || 'Course',
                     completionDate: new Date().toLocaleDateString(),
                     instructorName: 'Mayur Rajendra Waghchoure',
@@ -697,6 +759,78 @@ export default function LearnCourse() {
         {/* Content Area */}
         <div className="flex-1 p-4 md:p-8">
           {currentCapsule ? (
+          currentCapsule.isCertificate ? (
+            <motion.div
+              key={currentCapsule.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="max-w-4xl mx-auto space-y-6"
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>{currentCapsule.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground mb-4">
+                    Congratulations! You have completed the full course. Download your personalized certificate below.
+                  </p>
+                  <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+                    <div className="space-y-2">
+                      <div className="rounded-2xl border border-border bg-muted p-4">
+                        <p className="text-sm text-muted-foreground">Student</p>
+                        <p className="text-lg font-semibold">{authUser?.profile?.full_name || authUser?.email || 'Learner'}</p>
+                      </div>
+                      <div className="rounded-2xl border border-border bg-muted p-4">
+                        <p className="text-sm text-muted-foreground">Course</p>
+                        <p className="text-lg font-semibold">{course?.title || 'Course'}</p>
+                      </div>
+                      <div className="rounded-2xl border border-border bg-muted p-4">
+                        <p className="text-sm text-muted-foreground">Completion Date</p>
+                        <p className="text-lg font-semibold">{new Date().toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <Button
+                        size="lg"
+                        className="w-full"
+                        onClick={() =>
+                          downloadCertificate({
+                            studentName: authUser?.profile?.full_name || authUser?.email || 'Learner',
+                            courseTitle: course?.title || 'Course',
+                            completionDate: new Date().toLocaleDateString(),
+                            instructorName: 'Mayur Rajendra Waghchoure',
+                            organization: 'KnowGraph',
+                          })
+                        }
+                      >
+                        <Award className="w-4 h-4 mr-2" />
+                        Download Certificate
+                      </Button>
+                      <Badge className="bg-success/10 text-success">
+                        <CheckCircle2 className="w-4 h-4 mr-1" />
+                        Certificate unlocked
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <div className="flex justify-between">
+                <Button
+                  variant="outline"
+                  onClick={() => getPrevCapsule() && navigateToCapsule(getPrevCapsule()!)}
+                  disabled={!getPrevCapsule()}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-2" />
+                  Previous
+                </Button>
+                <Button disabled>
+                  <Award className="w-4 h-4 mr-2" />
+                  Completed
+                </Button>
+              </div>
+            </motion.div>
+          ) : (
             <motion.div
               key={currentCapsule.id}
               initial={{ opacity: 0, y: 20 }}
@@ -799,7 +933,6 @@ export default function LearnCourse() {
                     <iframe
                       src={`https://drive.google.com/file/d/${currentCapsule.drive_file_id}/preview`}
                       className="w-full h-full border-0"
-                      allow="autoplay; encrypted-media; fullscreen"
                       allowFullScreen
                       referrerPolicy="no-referrer-when-downgrade"
                       sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-presentation allow-top-navigation"
@@ -874,7 +1007,8 @@ export default function LearnCourse() {
                 </Button>
               </div>
             </motion.div>
-          ) : (
+          )
+        ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
                 <BookOpen className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
