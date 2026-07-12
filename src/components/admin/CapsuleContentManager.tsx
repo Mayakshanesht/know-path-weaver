@@ -37,6 +37,7 @@ import {
   GripVertical,
   Upload,
 } from 'lucide-react';
+import { ChevronUp, ChevronDown } from 'lucide-react';
 import { TiptapEditor } from '@/components/ui/tiptap-editor';
 
 const CONTENT_TYPE_CONFIG: Record<ContentType, { label: string; icon: React.ComponentType<{ className?: string }>; placeholder: string; description: string }> = {
@@ -400,8 +401,35 @@ export default function CapsuleContentManager({
                         <div
                           key={item.id}
                           className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg group"
+                          draggable
+                          onDragStart={(e) => e.dataTransfer?.setData('text/plain', String(index))}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            const dragIndex = Number(e.dataTransfer?.getData('text/plain'));
+                            handleReorderContent(dragIndex, index);
+                          }}
                         >
-                          <GripVertical className="w-4 h-4 text-muted-foreground cursor-move opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <GripVertical className="w-4 h-4 text-muted-foreground cursor-move opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                          <div className="flex flex-col">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 p-0"
+                              onClick={() => handleReorderContent(index, Math.max(0, index - 1))}
+                              aria-label="Move content up"
+                            >
+                              <ChevronUp className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 p-0"
+                              onClick={() => handleReorderContent(index, Math.min(content.length - 1, index + 1))}
+                              aria-label="Move content down"
+                            >
+                              <ChevronDown className="w-4 h-4" />
+                            </Button>
+                          </div>
                           <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">

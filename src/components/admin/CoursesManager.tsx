@@ -32,6 +32,7 @@ import {
   Loader2,
   GripVertical,
   ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 interface CourseWithPaths extends Course {
@@ -489,8 +490,14 @@ function CourseCard({
         <CardContent className="pt-0">
           <div className="border-t pt-4 mt-2 space-y-4">
             {/* Learning Paths */}
-            {course.learning_paths.map((path) => (
-              <LearningPathCard key={path.id} path={path} onRefresh={onRefresh} />
+            {course.learning_paths.map((path, idx) => (
+              <LearningPathCard
+                key={path.id}
+                path={path}
+                index={idx}
+                allPaths={course.learning_paths}
+                onRefresh={onRefresh}
+              />
             ))}
 
             {/* Add Path */}
@@ -516,9 +523,13 @@ function CourseCard({
 function LearningPathCard({
   path,
   onRefresh,
+  index,
+  allPaths,
 }: {
   path: LearningPath & { capsules: Capsule[] };
   onRefresh: () => void;
+  index?: number;
+  allPaths?: (LearningPath & { capsules: Capsule[] })[];
 }) {
   const { toast } = useToast();
   const [addingCapsule, setAddingCapsule] = useState(false);
@@ -580,10 +591,52 @@ function LearningPathCard({
     }
   };
 
+  const movePath = async (fromIndex: number, toIndex: number) => {
+    if (!allPaths) return;
+    if (fromIndex === toIndex) return;
+    const reordered = [...allPaths];
+    const [item] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, item);
+
+    try {
+      for (let i = 0; i < reordered.length; i++) {
+        const { error } = await supabase
+          .from('learning_paths')
+          .update({ order_index: i })
+          .eq('id', reordered[i].id);
+        if (error) throw error;
+      }
+      toast({ title: 'Modules reordered' });
+      onRefresh();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
   return (
     <div className="bg-secondary/50 rounded-lg p-4">
       <div className="flex items-center gap-2 mb-3">
         <GripVertical className="w-4 h-4 text-muted-foreground cursor-move" />
+        <div className="flex flex-col space-y-1">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6 p-0"
+            onClick={() => index !== undefined && movePath(index, Math.max(0, index - 1))}
+            aria-label="Move module up"
+          >
+            <ChevronUp className="w-4 h-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6 p-0"
+            onClick={() => index !== undefined && allPaths && movePath(index, Math.min(allPaths.length - 1, index + 1))}
+            aria-label="Move module down"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </Button>
+        </div>
         {editing ? (
           <Input
             value={title}
@@ -608,8 +661,15 @@ function LearningPathCard({
 
       {/* Capsules */}
       <div className="space-y-2 ml-6">
-        {path.capsules.map((capsule) => (
-          <CapsuleRow key={capsule.id} capsule={capsule} onRefresh={onRefresh} />
+        {path.capsules.map((capsule, idx) => (
+          <CapsuleRow
+            key={capsule.id}
+            capsule={capsule}
+            onRefresh={onRefresh}
+            index={idx}
+            allCapsules={path.capsules}
+            parentPathId={path.id}
+          />
         ))}
 
         {/* Add Capsule */}
@@ -635,7 +695,7 @@ function LearningPathCard({
 }
 
 // Capsule Row
-function CapsuleRow({ capsule, onRefresh }: { capsule: Capsule; onRefresh: () => void }) {
+function CapsuleRow({ capsule, onRefresh, index, allCapsules, parentPathId }: { capsule: Capsule; onRefresh: () => void; index?: number; allCapsules?: Capsule[]; parentPathId?: string }) {
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [contentOpen, setContentOpen] = useState(false);
@@ -716,11 +776,51 @@ function CapsuleRow({ capsule, onRefresh }: { capsule: Capsule; onRefresh: () =>
     }
   };
 
+  const moveCapsule = async (fromIndex: number, toIndex: number) => {
+    if (!allCapsules || fromIndex === toIndex) return;
+    const reordered = [...allCapsules];
+    const [item] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, item);
+
+    try {
+      for (let i = 0; i < reordered.length; i++) {
+        const { error } = await supabase
+          .from('capsules')
+          .update({ order_index: i })
+          .eq('id', reordered[i].id);
+        if (error) throw error;
+      }
+      toast({ title: 'Capsules reordered' });
+      onRefresh();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
   return (
     <>
-      <div className="flex items-center gap-2 bg-background/50 rounded p-2">
+      <div className="flex items-center gap-2 bg-background/50 rounded p-2" draggable>
         <GripVertical className="w-4 h-4 text-muted-foreground cursor-move flex-shrink-0" />
-        
+        <div className="flex flex-col">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6 p-0"
+            onClick={() => index !== undefined && moveCapsule(index, Math.max(0, index - 1))}
+            aria-label="Move capsule up"
+          >
+            <ChevronUp className="w-4 h-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6 p-0"
+            onClick={() => index !== undefined && allCapsules && moveCapsule(index, Math.min(allCapsules.length - 1, index + 1))}
+            aria-label="Move capsule down"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </Button>
+        </div>
         {editing ? (
           <div className="flex-1 space-y-2">
             <Input
