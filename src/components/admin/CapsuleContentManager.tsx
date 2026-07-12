@@ -38,6 +38,22 @@ import {
   Upload,
 } from 'lucide-react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import reorderArray from '@/lib/reorder';
 import { TiptapEditor } from '@/components/ui/tiptap-editor';
 
 const CONTENT_TYPE_CONFIG: Record<ContentType, { label: string; icon: React.ComponentType<{ className?: string }>; placeholder: string; description: string }> = {
@@ -263,22 +279,19 @@ export default function CapsuleContentManager({
 
   const handleReorderContent = async (dragIndex: number, dropIndex: number) => {
     if (dragIndex === dropIndex) return;
+    const reorderedContent = reorderArray(content, dragIndex, dropIndex);
 
-    const reorderedContent = [...content];
-    const [draggedItem] = reorderedContent.splice(dragIndex, 1);
-    reorderedContent.splice(dropIndex, 0, draggedItem);
-
-    // Update order_index for all items individually
+    // Update order_index for all items in a single RPC-like loop
     try {
       for (let i = 0; i < reorderedContent.length; i++) {
         const { error } = await supabase
           .from('capsule_content')
           .update({ order_index: i })
           .eq('id', reorderedContent[i].id);
-        
+
         if (error) throw error;
       }
-      
+
       toast({ title: 'Content reordered' });
       onRefresh();
     } catch (error: any) {
@@ -394,76 +407,26 @@ export default function CapsuleContentManager({
                   <p className="text-sm text-muted-foreground">No content added yet.</p>
                 ) : (
                   <div className="space-y-2">
-                    {content.map((item, index) => {
+                    <DndContext
+                      sensors={useSensors(useSensor(PointerSensor))}
+                      collisionDetection={closestCenter}
+                      onDragEnd={(e: DragEndEvent) => {
+                        const from = Number(e.active.id);
+                        const to = Number(e.over?.id ?? from);
+                        if (!Number.isNaN(from) && !Number.isNaN(to)) {
+                          handleReorderContent(from, to);
+                        }
+                      }}
+                    >
+                      <SortableContext items={content.map((c, i) => String(i))} strategy={verticalListSortingStrategy}>
+                        {content.map((item, index) => {
                       const typeConfig = CONTENT_TYPE_CONFIG[item.content_type];
                       const Icon = typeConfig.icon;
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg group"
-                          draggable
-                          onDragStart={(e) => e.dataTransfer?.setData('text/plain', String(index))}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={(e) => {
-                            const dragIndex = Number(e.dataTransfer?.getData('text/plain'));
-                            handleReorderContent(dragIndex, index);
-                          }}
-                        >
-                          <GripVertical className="w-4 h-4 text-muted-foreground cursor-move opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                          <div className="flex flex-col">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6 p-0"
-                              onClick={() => handleReorderContent(index, Math.max(0, index - 1))}
-                              aria-label="Move content up"
-                            >
-                              <ChevronUp className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6 p-0"
-                              onClick={() => handleReorderContent(index, Math.min(content.length - 1, index + 1))}
-                              aria-label="Move content down"
-                            >
-                              <ChevronDown className="w-4 h-4" />
-                            </Button>
-                          </div>
-                          <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {typeConfig.label}
-                              </Badge>
-                              <span className="text-sm font-medium truncate">
-                                {item.title || item.content_value}
-                              </span>
-                            </div>
-                            {item.description && (
-                              <p className="text-xs text-muted-foreground truncate">
-                                {item.description}
-                              </p>
-                            )}
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => openEdit(item)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleDeleteContent(item.id)}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        </div>
-                      );
+                          // SortableItem wrapper will render each item
+                          return <SortableItem key={item.id} id={String(index)} index={index} item={item} openEdit={openEdit} handleDeleteContent={handleDeleteContent} typeConfig={typeConfig} />;
+                        })}
+                      </SortableContext>
+                    </DndContext>
                     })}
                   </div>
                 )}
@@ -639,3 +602,34 @@ export default function CapsuleContentManager({
     </Dialog>
   );
 }
+
+  function SortableItem({ id, index, item, openEdit, handleDeleteContent, typeConfig }: any) {
+    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+    const Icon = typeConfig.icon;
+
+    return (
+      <div ref={setNodeRef} style={style} className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg group">
+        <div {...attributes} {...listeners} className="cursor-move flex-shrink-0">
+          <GripVertical className="w-4 h-4 text-muted-foreground" />
+        </div>
+        <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">{typeConfig.label}</Badge>
+            <span className="text-sm font-medium truncate">{item.title || item.content_value}</span>
+          </div>
+          {item.description && <p className="text-xs text-muted-foreground truncate">{item.description}</p>}
+        </div>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
+          <Edit className="w-4 h-4" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteContent(item.id)}>
+          <Trash2 className="w-4 h-4 text-destructive" />
+        </Button>
+      </div>
+    );
+  }

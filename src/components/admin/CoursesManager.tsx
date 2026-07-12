@@ -34,6 +34,21 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import reorderArray from '@/lib/reorder';
 
 interface CourseWithPaths extends Course {
   learning_paths: (LearningPath & { capsules: Capsule[] })[];
@@ -41,6 +56,26 @@ interface CourseWithPaths extends Course {
 
 // Lazy load CapsuleContentManager to avoid circular dependencies
 const CapsuleContentManager = lazy(() => import('./CapsuleContentManager'));
+
+function SortableLearningPath({ id, children }: { id: string; children: any }) {
+  const { setNodeRef, transform, transition } = useSortable({ id });
+  const style = { transform: CSS.Transform.toString(transform), transition } as any;
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children}
+    </div>
+  );
+}
+
+function SortableCapsule({ id, children }: { id: string; children: any }) {
+  const { setNodeRef, transform, transition } = useSortable({ id });
+  const style = { transform: CSS.Transform.toString(transform), transition } as any;
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children}
+    </div>
+  );
+}
 
 export default function CoursesManager() {
   const { toast } = useToast();
@@ -426,6 +461,24 @@ function CourseCard({
   const [addingPath, setAddingPath] = useState(false);
   const [newPathTitle, setNewPathTitle] = useState('');
 
+  const handleReorderPaths = async (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    const reordered = reorderArray(course.learning_paths, fromIndex, toIndex);
+    try {
+      for (let i = 0; i < reordered.length; i++) {
+        const { error } = await supabase
+          .from('learning_paths')
+          .update({ order_index: i })
+          .eq('id', reordered[i].id);
+        if (error) throw error;
+      }
+      toast({ title: 'Modules reordered' });
+      onRefresh();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
   const handleAddPath = async () => {
     if (!newPathTitle.trim()) return;
 
@@ -490,15 +543,33 @@ function CourseCard({
         <CardContent className="pt-0">
           <div className="border-t pt-4 mt-2 space-y-4">
             {/* Learning Paths */}
-            {course.learning_paths.map((path, idx) => (
-              <LearningPathCard
-                key={path.id}
-                path={path}
-                index={idx}
-                allPaths={course.learning_paths}
-                onRefresh={onRefresh}
-              />
-            ))}
+            <DndContext
+              sensors={useSensors(useSensor(PointerSensor))}
+              collisionDetection={closestCenter}
+              onDragEnd={(e: DragEndEvent) => {
+                const fromId = String(e.active.id ?? '');
+                const overId = String(e.over?.id ?? '');
+                if (!fromId || !overId) return;
+                const fromIndex = course.learning_paths.findIndex((p) => p.id === fromId);
+                const toIndex = course.learning_paths.findIndex((p) => p.id === overId);
+                if (fromIndex === -1 || toIndex === -1) return;
+                handleReorderPaths(fromIndex, toIndex);
+              }}
+            >
+              <SortableContext items={course.learning_paths.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                {course.learning_paths.map((path, idx) => (
+                  <SortableLearningPath key={path.id} id={path.id}>
+                    <LearningPathCard
+                      path={path}
+                      onRefresh={onRefresh}
+                      moveUp={() => handleReorderPaths(idx, Math.max(0, idx - 1))}
+                      moveDown={() => handleReorderPaths(idx, Math.min(course.learning_paths.length - 1, idx + 1))}
+                      dragHandleProps={undefined}
+                    />
+                  </SortableLearningPath>
+                ))}
+              </SortableContext>
+            </DndContext>
 
             {/* Add Path */}
             <div className="flex gap-2">
@@ -523,13 +594,15 @@ function CourseCard({
 function LearningPathCard({
   path,
   onRefresh,
-  index,
-  allPaths,
+  moveUp,
+  moveDown,
+  dragHandleProps,
 }: {
   path: LearningPath & { capsules: Capsule[] };
   onRefresh: () => void;
-  index?: number;
-  allPaths?: (LearningPath & { capsules: Capsule[] })[];
+  moveUp?: () => void;
+  moveDown?: () => void;
+  dragHandleProps?: any;
 }) {
   const { toast } = useToast();
   const [addingCapsule, setAddingCapsule] = useState(false);
@@ -588,6 +661,24 @@ function LearningPathCard({
     } else {
       toast({ title: 'Module deleted' });
       onRefresh();
+    }
+  };
+
+  const handleReorderCapsules = async (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    const reordered = reorderArray(path.capsules, fromIndex, toIndex);
+    try {
+      for (let i = 0; i < reordered.length; i++) {
+        const { error } = await supabase
+          .from('capsules')
+          .update({ order_index: i })
+          .eq('id', reordered[i].id);
+        if (error) throw error;
+      }
+      toast({ title: 'Capsules reordered' });
+      onRefresh();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
   };
 
@@ -663,36 +754,38 @@ function LearningPathCard({
       <div className="space-y-2 ml-6">
         {path.capsules.map((capsule, idx) => (
           <CapsuleRow
-            key={capsule.id}
-            capsule={capsule}
-            onRefresh={onRefresh}
-            index={idx}
-            allCapsules={path.capsules}
-            parentPathId={path.id}
-          />
-        ))}
+            {/* Capsules */}
+            <div className="space-y-2 ml-6">
+              <DndContext
+                sensors={useSensors(useSensor(PointerSensor))}
+                collisionDetection={closestCenter}
+                onDragEnd={(e: DragEndEvent) => {
+                  const fromId = String(e.active.id ?? '');
+                  const overId = String(e.over?.id ?? '');
+                  if (!fromId || !overId) return;
+                  const fromIndex = path.capsules.findIndex((c) => c.id === fromId);
+                  const toIndex = path.capsules.findIndex((c) => c.id === overId);
+                  if (fromIndex === -1 || toIndex === -1) return;
+                  handleReorderCapsules(fromIndex, toIndex);
+                }}
+              >
+                <SortableContext items={path.capsules.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+                  {path.capsules.map((capsule, idx) => (
+                    <SortableCapsule key={capsule.id} id={capsule.id}>
+                      <CapsuleRow capsule={capsule} onRefresh={onRefresh} moveUp={() => handleReorderCapsules(idx, Math.max(0, idx - 1))} moveDown={() => handleReorderCapsules(idx, Math.min(path.capsules.length - 1, idx + 1))} />
+                    </SortableCapsule>
+                  ))}
+                </SortableContext>
+              </DndContext>
 
-        {/* Add Capsule */}
-        <div className="flex gap-2">
-          <Input
-            placeholder="New capsule title"
-            value={newCapsuleTitle}
-            onChange={(e) => setNewCapsuleTitle(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAddCapsule()}
-            className="h-8 text-sm"
-          />
-          <Button
-            size="sm"
-            onClick={handleAddCapsule}
-            disabled={addingCapsule || !newCapsuleTitle.trim()}
-          >
-            {addingCapsule ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
+              {/* Add Capsule */}
+              <div className="flex gap-2">
+                <Input placeholder="New capsule title" value={newCapsuleTitle} onChange={(e) => setNewCapsuleTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddCapsule()} className="h-8 text-sm" />
+                <Button onClick={handleAddCapsule} disabled={addingCapsule || !newCapsuleTitle.trim()}>
+                  {addingCapsule ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
 
 // Capsule Row
 function CapsuleRow({ capsule, onRefresh, index, allCapsules, parentPathId }: { capsule: Capsule; onRefresh: () => void; index?: number; allCapsules?: Capsule[]; parentPathId?: string }) {
