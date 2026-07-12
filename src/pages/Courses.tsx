@@ -23,14 +23,20 @@ export default function Courses() {
   const fetchCourses = async () => {
     const { data, error } = await supabase
       .from('courses')
-      .select('*')
+      .select('*, learning_paths(*, capsules(*))')
       .eq('is_published', true)
       .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching courses:', error);
     } else {
-      setCourses(data || []);
+      // Normalize and include module/capsule counts
+      const enriched = (data || []).map((c: any) => ({
+        ...c,
+        modules_count: (c.learning_paths || []).length,
+        capsules_count: (c.learning_paths || []).reduce((acc: number, p: any) => acc + (p.capsules || []).length, 0),
+      }));
+      setCourses(enriched || []);
     }
     setLoading(false);
   };
@@ -91,7 +97,7 @@ export default function Courses() {
                 >
                   <Card className="overflow-hidden h-full flex flex-col card-hover">
                     {/* Thumbnail */}
-                    <div className="relative h-48 bg-gradient-to-br from-primary/20 to-accent/20">
+                      <div className="relative h-48 bg-gradient-to-br from-primary/20 to-accent/20 group-hover:scale-105 transition-transform duration-300">
                       {course.thumbnail_url ? (
                         <img
                           src={course.thumbnail_url}
@@ -103,9 +109,8 @@ export default function Courses() {
                           <BookOpen className="w-16 h-16 text-primary/40" />
                         </div>
                       )}
-                      <Badge className="absolute top-3 right-3 bg-accent text-accent-foreground">
-                        Beta
-                      </Badge>
+                        <Badge className="absolute top-3 left-3 bg-accent text-accent-foreground">Beta</Badge>
+                        <div className="absolute bottom-3 right-3 bg-gradient-to-r from-black/30 to-transparent text-white text-xs px-3 py-1 rounded">Final Projects • {course.capsules_count ?? 0}</div>
                     </div>
 
                     <CardHeader className="flex-1">
@@ -116,14 +121,19 @@ export default function Courses() {
                     </CardHeader>
 
                     <CardContent>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <IndianRupee className="w-4 h-4" />
-                          <span>₹{course.price_india || 0}</span>
+                      <div className="flex items-center justify-between gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1">
+                            <IndianRupee className="w-4 h-4" />
+                            <span className="font-medium">₹{course.price_india || 0}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Euro className="w-4 h-4" />
+                            <span className="font-medium">€{course.price_international || 0}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Euro className="w-4 h-4" />
-                          <span>€{course.price_international || 0}</span>
+                        <div className="text-xs text-muted-foreground">
+                          {course.modules_count ?? 0} modules • {course.capsules_count ?? 0} capsules
                         </div>
                       </div>
 

@@ -9,27 +9,47 @@ export default function HeroSection() {
       {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-accent/5" />
       
-      {/* Animated background nodes */}
+      {/* Animated background nodes + SVG wave */}
       <div className="absolute inset-0 overflow-hidden">
         {[...Array(6)].map((_, i) => (
           <motion.div
             key={i}
-            className="absolute w-32 h-32 rounded-full bg-accent/10"
+            className="absolute w-40 h-40 rounded-full bg-gradient-to-br from-accent/10 to-primary/8 blur-2xl"
             style={{
-              left: `${20 + i * 15}%`,
-              top: `${15 + (i % 3) * 25}%`,
+              left: `${10 + i * 14}%`,
+              top: `${10 + (i % 4) * 20}%`,
             }}
             animate={{
-              y: [0, -20, 0],
-              scale: [1, 1.1, 1],
+              y: [0, -18, 0],
+              x: [0, (i % 2 === 0 ? -6 : 6), 0],
+              scale: [1, 1.05, 1],
             }}
             transition={{
-              duration: 4 + i,
+              duration: 6 + i,
               repeat: Infinity,
-              delay: i * 0.5,
+              delay: i * 0.4,
             }}
           />
         ))}
+
+        <motion.svg
+          viewBox="0 0 1440 200"
+          className="absolute bottom-0 left-0 w-full opacity-30"
+          initial={{ y: 40 }}
+          animate={{ y: 0 }}
+          transition={{ duration: 1.2 }}
+        >
+          <path
+            d="M0,80 C240,160 480,0 720,80 C960,160 1200,0 1440,80 L1440,200 L0,200 Z"
+            fill="url(#g)"
+          />
+          <defs>
+            <linearGradient id="g" x1="0" x2="1">
+              <stop offset="0%" stopColor="var(--tw-gradient-stops, #7c3aed)" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.4" />
+            </linearGradient>
+          </defs>
+        </motion.svg>
       </div>
 
       <div className="container mx-auto px-4 relative z-10">
@@ -82,6 +102,29 @@ export default function HeroSection() {
             <Button size="lg" variant="outline" asChild className="text-lg">
               <Link to="/signup">Join Beta</Link>
             </Button>
+          </motion.div>
+
+          {/* Floating preview card */}
+          <motion.div
+            className="mt-12 flex justify-center"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+          >
+            <motion.div
+              className="bg-gradient-to-br from-white/70 to-primary/5 border border-gray-200 rounded-xl shadow-2xl p-6 max-w-2xl w-full backdrop-blur"
+              whileHover={{ y: -6, scale: 1.01 }}
+              transition={{ type: 'spring', stiffness: 200 }}
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-lg">KG</div>
+                <div>
+                  <div className="text-sm text-muted-foreground">Featured Course</div>
+                  <div className="font-semibold text-xl">AI Bootcamp for Autonomous Driving</div>
+                  <div className="text-sm text-muted-foreground mt-2">End-to-end AI stack — ML, GenAI, Perception, Planning. Final projects highlighted.</div>
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
 
           {/* Stats */}
