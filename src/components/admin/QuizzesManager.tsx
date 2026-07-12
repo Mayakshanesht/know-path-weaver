@@ -82,6 +82,7 @@ export default function QuizzesManager() {
     correct_answer: 0,
     explanation: '',
     points: 1,
+    key: Math.random(),
   });
 
   useEffect(() => {
