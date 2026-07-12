@@ -45,12 +45,14 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  KeyboardSensor,
 } from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
   verticalListSortingStrategy,
   useSortable,
+  sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import reorderArray from '@/lib/reorder';
@@ -407,8 +409,15 @@ export default function CapsuleContentManager({
                   <p className="text-sm text-muted-foreground">No content added yet.</p>
                 ) : (
                   <div className="space-y-2">
-                    <DndContext
-                      sensors={useSensors(useSensor(PointerSensor))}
+                    {(() => {
+                      const sensors = useSensors(
+                        useSensor(PointerSensor),
+                        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+                      );
+
+                      return (
+                        <DndContext
+                          sensors={sensors}
                       collisionDetection={closestCenter}
                       onDragEnd={(e: DragEndEvent) => {
                         const from = Number(e.active.id);
@@ -426,8 +435,9 @@ export default function CapsuleContentManager({
                           return <SortableItem key={item.id} id={String(index)} index={index} item={item} openEdit={openEdit} handleDeleteContent={handleDeleteContent} typeConfig={typeConfig} />;
                         })}
                       </SortableContext>
-                    </DndContext>
-                    })}
+                        </DndContext>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

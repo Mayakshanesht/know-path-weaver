@@ -2,6 +2,7 @@ import { useEffect, useState, lazy, Suspense } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Course, LearningPath, Capsule } from '@/types/database';
 import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,11 +43,13 @@ import {
   useSensors,
   DragEndEvent,
 } from '@dnd-kit/core';
+import { KeyboardSensor } from '@dnd-kit/core';
 import {
   SortableContext,
   verticalListSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import reorderArray from '@/lib/reorder';
 
@@ -58,28 +61,29 @@ interface CourseWithPaths extends Course {
 const CapsuleContentManager = lazy(() => import('./CapsuleContentManager'));
 
 function SortableLearningPath({ id, children }: { id: string; children: any }) {
-  const { setNodeRef, transform, transition } = useSortable({ id });
+  const { setNodeRef, transform, transition, attributes, listeners } = useSortable({ id });
   const style = { transform: CSS.Transform.toString(transform), transition } as any;
   return (
-    <div ref={setNodeRef} style={style}>
+    <motion.div layout ref={setNodeRef} style={style} {...attributes} {...listeners}>
       {children}
-    </div>
+    </motion.div>
   );
 }
 
 function SortableCapsule({ id, children }: { id: string; children: any }) {
-  const { setNodeRef, transform, transition } = useSortable({ id });
+  const { setNodeRef, transform, transition, attributes, listeners } = useSortable({ id });
   const style = { transform: CSS.Transform.toString(transform), transition } as any;
   return (
-    <div ref={setNodeRef} style={style}>
+    <motion.div layout ref={setNodeRef} style={style} {...attributes} {...listeners}>
       {children}
-    </div>
+    </motion.div>
   );
 }
 
 export default function CoursesManager() {
   const { toast } = useToast();
   const [courses, setCourses] = useState<CourseWithPaths[]>([]);
+  const [liveMessage, setLiveMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [courseDialogOpen, setCourseDialogOpen] = useState(false);
@@ -473,6 +477,7 @@ function CourseCard({
         if (error) throw error;
       }
       toast({ title: 'Modules reordered' });
+      setLiveMessage(`Moved module to position ${toIndex + 1}`);
       onRefresh();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -508,6 +513,7 @@ function CourseCard({
 
   return (
     <Card>
+      <div aria-live="polite" className="sr-only">{liveMessage}</div>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
           <div className="flex-1">
@@ -543,8 +549,15 @@ function CourseCard({
         <CardContent className="pt-0">
           <div className="border-t pt-4 mt-2 space-y-4">
             {/* Learning Paths */}
-            <DndContext
-              sensors={useSensors(useSensor(PointerSensor))}
+            {(() => {
+              const sensors = useSensors(
+                useSensor(PointerSensor),
+                useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+              );
+
+              return (
+                <DndContext
+                  sensors={sensors}
               collisionDetection={closestCenter}
               onDragEnd={(e: DragEndEvent) => {
                 const fromId = String(e.active.id ?? '');
@@ -556,7 +569,7 @@ function CourseCard({
                 handleReorderPaths(fromIndex, toIndex);
               }}
             >
-              <SortableContext items={course.learning_paths.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                  <SortableContext items={course.learning_paths.map((p) => p.id)} strategy={verticalListSortingStrategy}>
                 {course.learning_paths.map((path, idx) => (
                   <SortableLearningPath key={path.id} id={path.id}>
                     <LearningPathCard
@@ -568,8 +581,10 @@ function CourseCard({
                     />
                   </SortableLearningPath>
                 ))}
-              </SortableContext>
-            </DndContext>
+                  </SortableContext>
+                </DndContext>
+              );
+            })()}
 
             {/* Add Path */}
             <div className="flex gap-2">
@@ -676,6 +691,7 @@ function LearningPathCard({
         if (error) throw error;
       }
       toast({ title: 'Capsules reordered' });
+      setLiveMessage(`Moved capsule to position ${toIndex + 1}`);
       onRefresh();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -713,19 +729,31 @@ function LearningPathCard({
             size="icon"
             variant="ghost"
             className="h-6 w-6 p-0"
-            onClick={() => index !== undefined && movePath(index, Math.max(0, index - 1))}
+            onClick={() => moveUp && moveUp()}
             aria-label="Move module up"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') moveUp && moveUp();
+              if (e.key === 'ArrowUp') moveUp && moveUp();
+              if (e.key === 'ArrowDown') moveDown && moveDown();
+            }}
           >
             <ChevronUp className="w-4 h-4" />
+            <span className="sr-only">Move module up</span>
           </Button>
           <Button
             size="icon"
             variant="ghost"
             className="h-6 w-6 p-0"
-            onClick={() => index !== undefined && allPaths && movePath(index, Math.min(allPaths.length - 1, index + 1))}
+            onClick={() => moveDown && moveDown()}
             aria-label="Move module down"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') moveDown && moveDown();
+              if (e.key === 'ArrowDown') moveDown && moveDown();
+              if (e.key === 'ArrowUp') moveUp && moveUp();
+            }}
           >
             <ChevronDown className="w-4 h-4" />
+            <span className="sr-only">Move module down</span>
           </Button>
         </div>
         {editing ? (
@@ -752,31 +780,44 @@ function LearningPathCard({
 
       {/* Capsules */}
       <div className="space-y-2 ml-6">
-        {path.capsules.map((capsule, idx) => (
-          <CapsuleRow
-            {/* Capsules */}
-            <div className="space-y-2 ml-6">
-              <DndContext
-                sensors={useSensors(useSensor(PointerSensor))}
-                collisionDetection={closestCenter}
-                onDragEnd={(e: DragEndEvent) => {
-                  const fromId = String(e.active.id ?? '');
-                  const overId = String(e.over?.id ?? '');
-                  if (!fromId || !overId) return;
-                  const fromIndex = path.capsules.findIndex((c) => c.id === fromId);
-                  const toIndex = path.capsules.findIndex((c) => c.id === overId);
-                  if (fromIndex === -1 || toIndex === -1) return;
-                  handleReorderCapsules(fromIndex, toIndex);
-                }}
-              >
-                <SortableContext items={path.capsules.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-                  {path.capsules.map((capsule, idx) => (
-                    <SortableCapsule key={capsule.id} id={capsule.id}>
-                      <CapsuleRow capsule={capsule} onRefresh={onRefresh} moveUp={() => handleReorderCapsules(idx, Math.max(0, idx - 1))} moveDown={() => handleReorderCapsules(idx, Math.min(path.capsules.length - 1, idx + 1))} />
-                    </SortableCapsule>
-                  ))}
-                </SortableContext>
-              </DndContext>
+        {(() => {
+          const sensors = useSensors(
+            useSensor(PointerSensor),
+            useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+          );
+
+          return (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(e: DragEndEvent) => {
+                const fromId = String(e.active.id ?? '');
+                const overId = String(e.over?.id ?? '');
+                if (!fromId || !overId) return;
+                const fromIndex = path.capsules.findIndex((c) => c.id === fromId);
+                const toIndex = path.capsules.findIndex((c) => c.id === overId);
+                if (fromIndex === -1 || toIndex === -1) return;
+                handleReorderCapsules(fromIndex, toIndex);
+              }}
+            >
+              <SortableContext items={path.capsules.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+                {path.capsules.map((capsule, idx) => (
+                  <SortableCapsule key={capsule.id} id={capsule.id}>
+                    <CapsuleRow
+                      capsule={capsule}
+                      onRefresh={onRefresh}
+                      moveUp={() => handleReorderCapsules(idx, Math.max(0, idx - 1))}
+                      moveDown={() => handleReorderCapsules(idx, Math.min(path.capsules.length - 1, idx + 1))}
+                      index={idx}
+                      allCapsules={path.capsules}
+                      parentPathId={path.id}
+                    />
+                  </SortableCapsule>
+                ))}
+              </SortableContext>
+            </DndContext>
+          );
+        })()}
 
               {/* Add Capsule */}
               <div className="flex gap-2">
@@ -786,9 +827,13 @@ function LearningPathCard({
                 </Button>
               </div>
             </div>
-
+    </div>
+  );
+}
+ 
 // Capsule Row
-function CapsuleRow({ capsule, onRefresh, index, allCapsules, parentPathId }: { capsule: Capsule; onRefresh: () => void; index?: number; allCapsules?: Capsule[]; parentPathId?: string }) {
+function CapsuleRow(props) {
+  const { capsule, onRefresh, index, allCapsules, parentPathId } = props;
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [contentOpen, setContentOpen] = useState(false);
@@ -901,8 +946,14 @@ function CapsuleRow({ capsule, onRefresh, index, allCapsules, parentPathId }: { 
             className="h-6 w-6 p-0"
             onClick={() => index !== undefined && moveCapsule(index, Math.max(0, index - 1))}
             aria-label="Move capsule up"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') index !== undefined && moveCapsule(index, Math.max(0, index - 1));
+              if (e.key === 'ArrowUp') index !== undefined && moveCapsule(index, Math.max(0, index - 1));
+              if (e.key === 'ArrowDown') index !== undefined && allCapsules && moveCapsule(index, Math.min(allCapsules.length - 1, index + 1));
+            }}
           >
             <ChevronUp className="w-4 h-4" />
+            <span className="sr-only">Move capsule up</span>
           </Button>
           <Button
             size="icon"
@@ -910,8 +961,14 @@ function CapsuleRow({ capsule, onRefresh, index, allCapsules, parentPathId }: { 
             className="h-6 w-6 p-0"
             onClick={() => index !== undefined && allCapsules && moveCapsule(index, Math.min(allCapsules.length - 1, index + 1))}
             aria-label="Move capsule down"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') index !== undefined && allCapsules && moveCapsule(index, Math.min(allCapsules.length - 1, index + 1));
+              if (e.key === 'ArrowDown') index !== undefined && allCapsules && moveCapsule(index, Math.min(allCapsules.length - 1, index + 1));
+              if (e.key === 'ArrowUp') index !== undefined && moveCapsule(index, Math.max(0, index - 1));
+            }}
           >
             <ChevronDown className="w-4 h-4" />
+            <span className="sr-only">Move capsule down</span>
           </Button>
         </div>
         {editing ? (
