@@ -33,7 +33,7 @@ import {
   Phone,
   Info,
 } from 'lucide-react';
-import paymentQR from '@/assets/payment-qr.png?url';
+import paymentQR from '@/assets/payment_qr_code.jpeg?url';
 
 interface LearningPathWithCapsules extends LearningPath {
   capsules: Capsule[];
@@ -434,7 +434,7 @@ export default function CourseDetail() {
                               Bank Transfer Details
                             </h4>
                             <div className="grid grid-cols-1 gap-2 text-sm">
-                              <div><span className="font-medium">Account:</span> CloudBee Robotics</div>
+                              <div><span className="font-medium">Account:</span> KnowGraph</div>
                               <div><span className="font-medium">Holder:</span> Rajendra Dyandev Waghachoure</div>
                               <div><span className="font-medium">Bank:</span> Pune District Central Co-Op Bank Ltd., Pune</div>
                               <div><span className="font-medium">Branch:</span> Ranjangaon Sandas</div>

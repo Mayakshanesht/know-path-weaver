@@ -16,13 +16,13 @@ export interface CourseData {
 }
 
 export const PAYMENT_DETAILS = {
-  accountName: 'CloudBee Robotics',
+  accountName: 'KnowGraph',
   accountHolder: 'Rajendra Dyandev Waghachoure',
   bank: 'Pune District Central Co-Op Bank Ltd., Pune',
   branch: 'Ranjangaon Sandas',
   accountNumber: '183001600000130',
   ifsc: 'HDFC0CPDCCB',
-  email: 'mayur.waghchoure@cloudbeerobotics-ai.com',
+  email: 'support@knowgraph.com',
   whatsapp: '+91 88305 79377',
 };
 
@@ -75,6 +75,26 @@ export const COURSES: CourseData[] = [
     priceInternational: 350,
     paymentReference: 'ADAS_COURSE_2025',
     domains: ['Autonomous Driving', 'AI', 'Control Systems'],
+  },
+  {
+    id: 'cicd-autonomous-systems',
+    slug: 'cicd-autonomous-systems',
+    emoji: '🛠️',
+    shortTitle: 'CI/CD for Autonomous Systems',
+    title: 'CI/CD for Autonomous Systems — Reliable Edge Deployments',
+    description: 'Build automated integration, testing, and deployment pipelines for safety-critical autonomous systems.',
+    fullDescription: 'Learn how to design CI/CD workflows for autonomous vehicles, robotics, and embedded systems with end-to-end validation, regression testing, and deployment orchestration.',
+    curriculum: [
+      'Module 1: CI/CD Fundamentals for Embedded Systems',
+      'Module 2: Automated Testing & Simulation Pipelines',
+      'Module 3: Secure Deployment to Edge Devices',
+      'Module 4: Monitoring, Rollback, and Reliability',
+      'Module 5: Validation, Certification, and Compliance',
+    ],
+    priceIndia: 24999,
+    priceInternational: 240,
+    paymentReference: 'CICD_AUTONOMOUS_2025',
+    domains: ['Autonomous Systems', 'DevOps', 'Control Systems'],
   },
   {
     id: 'vehicle-control',

@@ -14,8 +14,8 @@ const features = [
   },
   {
     icon: Play,
-    title: 'Capsule Lessons',
-    description: 'Bite-sized learning units with video content directly from Google Drive.',
+    title: 'Capsule Reels',
+    description: 'Bite-sized lessons that flow like short reels, making complex systems feel intuitive and easy to follow.',
   },
   {
     icon: BarChart3,

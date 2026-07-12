@@ -53,16 +53,26 @@ export default function Index() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="flex flex-col gap-4 sm:flex-row"
+              className="flex flex-col gap-4 sm:flex-row sm:items-center"
             >
-              <Button size="lg" asChild className="text-lg">
-                <Link to="/courses" className="inline-flex items-center justify-center gap-2">
+              <Button
+                size="lg"
+                asChild
+                className="w-full sm:w-auto text-lg bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-500 text-slate-950 shadow-lg shadow-cyan-500/20"
+              >
+                <Link to="/courses" className="inline-flex w-full items-center justify-center gap-2">
                   Browse courses
                   <ArrowRight className="w-5 h-5" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" asChild className="text-lg">
-                <Link to="/signup">Create account</Link>
+              <Button
+                size="lg"
+                asChild
+                className="w-full sm:w-auto text-lg bg-slate-100 text-slate-950 hover:bg-slate-200"
+              >
+                <Link to="/signup" className="inline-flex w-full items-center justify-center">
+                  Create account
+                </Link>
               </Button>
             </motion.div>
 
@@ -70,7 +80,7 @@ export default function Index() {
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="grid grid-cols-3 gap-4 max-w-xl"
+              className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-xl"
             >
               {[
                 { value: '10+', label: 'Courses' },

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BookOpen, ArrowRight, IndianRupee, Euro, Info, CreditCard, QrCode, Mail, Phone } from 'lucide-react';
-import paymentQR from '@/assets/payment-qr.png?url';
+import paymentQR from '@/assets/payment_qr_code.jpeg?url';
 import aiThumb from '@/assets/thumbnails/ai-bootcamp.svg?url';
 import mlThumb from '@/assets/thumbnails/ml-fundamentals.svg?url';
 import roboticsThumb from '@/assets/thumbnails/robotics-projects.svg?url';
@@ -18,6 +18,7 @@ import roboticsThumb from '@/assets/thumbnails/robotics-projects.svg?url';
 export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const fallbackCourseImage = 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1400&q=80';
 
   useEffect(() => {
     fetchCourses();
@@ -161,21 +162,19 @@ export default function Courses() {
                             alt={course.title}
                             loading="lazy"
                             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = fallbackCourseImage;
+                            }}
                           />
                         ) : curated ? (
                           <img src={curated} alt={course.title} className="h-full w-full object-cover" />
                         ) : (
-                          <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary/20 to-accent/20">
-                            <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-4 text-center">
-                              <motion.div
-                                initial={{ scale: 0.95 }}
-                                animate={{ scale: [0.95, 1.05, 0.98] }}
-                                transition={{ duration: 3.5, repeat: Infinity }}
-                                className="mx-auto mb-3 h-16 w-16 rounded-full bg-cyan-400/15"
-                              />
-                              <p className="text-sm text-slate-200">{String((course.title || 'KG').split(' ').map((s) => s[0]).join('').slice(0, 3))}</p>
-                            </div>
-                          </div>
+                          <img
+                            src={fallbackCourseImage}
+                            alt="Course cover"
+                            className="h-full w-full object-cover"
+                          />
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                         <Badge className="absolute top-4 left-4 bg-cyan-500 text-cyan-950">Featured</Badge>
@@ -260,7 +259,7 @@ export default function Courses() {
                   <div className="bg-card p-4 rounded-lg border space-y-3">
                     <div>
                       <span className="font-medium">Account Name:</span>
-                      <p className="text-sm text-muted-foreground">CloudBee Robotics</p>
+                      <p className="text-sm text-muted-foreground">KnowGraph</p>
                     </div>
                     <div>
                       <span className="font-medium">Account Holder:</span>

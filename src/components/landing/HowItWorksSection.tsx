@@ -15,12 +15,12 @@ const steps = [
   {
     icon: Unlock,
     title: 'Get Approved',
-    description: 'Our team verifies your payment and grants you immediate course access.',
+    description: 'Our team verifies your payment and grants you immediate course access for a seamless start.',
   },
   {
     icon: Play,
     title: 'Start Learning',
-    description: 'Progress through capsules, unlock prerequisites, and track your journey.',
+    description: 'Enjoy capsule-based lessons that feel like a short reel — fast, focused, and deeply structured.',
   },
 ];
 
