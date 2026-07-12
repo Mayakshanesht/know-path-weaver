@@ -2,8 +2,29 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 export default function HeroSection() {
+  function CountUp({ value }: { value: string }) {
+    const numeric = parseInt(String(value).replace(/\D/g, '') || '0', 10);
+    const [count, setCount] = useState(0);
+
+    useEffect(() => {
+      let raf = 0;
+      const duration = 900;
+      const start = performance.now();
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        setCount(Math.floor(t * numeric));
+        if (t < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+    }, [numeric]);
+
+    return <span>{numeric > 0 ? (count === numeric ? `${numeric}${String(value).replace(/\d/g, '')}` : count) : value}</span>;
+  }
+
   return (
     <section className="relative min-h-[90vh] flex items-center overflow-hidden">
       {/* Background gradient */}
@@ -47,6 +68,35 @@ export default function HeroSection() {
             <linearGradient id="g" x1="0" x2="1">
               <stop offset="0%" stopColor="var(--tw-gradient-stops, #7c3aed)" stopOpacity="0.6" />
               <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.4" />
+            </linearGradient>
+          </defs>
+        </motion.svg>
+
+        {/* Animated network overlay (lines + pulsing nodes) */}
+        <motion.svg viewBox="0 0 1000 600" className="absolute -top-24 left-1/2 -translate-x-1/2 w-[1100px] opacity-40 pointer-events-none" preserveAspectRatio="xMidYMid meet">
+          <g stroke="rgba(99,102,241,0.25)" strokeWidth="1">
+            <line x1="100" y1="120" x2="300" y2="80" />
+            <line x1="300" y1="80" x2="500" y2="140" />
+            <line x1="500" y1="140" x2="700" y2="90" />
+            <line x1="200" y1="220" x2="450" y2="180" />
+            <line x1="650" y1="200" x2="820" y2="150" />
+          </g>
+          {[{x:100,y:120},{x:300,y:80},{x:500,y:140},{x:700,y:90},{x:200,y:220},{x:450,y:180},{x:650,y:200},{x:820,y:150}].map((p, i) => (
+            <motion.circle
+              key={i}
+              cx={p.x}
+              cy={p.y}
+              r={8}
+              fill={i % 2 === 0 ? 'url(#nodeGradient)' : '#06b6d4'}
+              initial={{ scale: 0.9, opacity: 0.8 }}
+              animate={{ scale: [0.9, 1.2, 0.95], opacity: [0.8, 1, 0.85] }}
+              transition={{ duration: 3 + i * 0.3, repeat: Infinity, delay: i * 0.15 }}
+            />
+          ))}
+          <defs>
+            <linearGradient id="nodeGradient" x1="0" x2="1">
+              <stop offset="0%" stopColor="#7c3aed" />
+              <stop offset="100%" stopColor="#06b6d4" />
             </linearGradient>
           </defs>
         </motion.svg>
@@ -142,7 +192,7 @@ export default function HeroSection() {
               { value: '500+', label: 'Students' },
             ].map((stat, i) => (
               <div key={i} className="text-center">
-                <div className="text-3xl font-bold text-primary">{stat.value}</div>
+                        <div className="text-3xl font-bold text-primary"><CountUp value={stat.value} /></div>
                 <div className="text-sm text-muted-foreground">{stat.label}</div>
               </div>
             ))}

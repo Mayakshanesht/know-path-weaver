@@ -100,14 +100,27 @@ export default function Courses() {
                     {/* Thumbnail */}
                     <div className="relative h-48 bg-gradient-to-br from-primary/20 to-accent/20 group overflow-hidden">
                       {course.thumbnail_url ? (
-                        <img
-                          src={course.thumbnail_url}
-                          alt={course.title}
-                          className="w-full h-full object-cover transform transition-transform duration-500 group-hover:scale-105"
-                        />
+                          <img
+                            src={course.thumbnail_url}
+                            alt={course.title}
+                            loading="lazy"
+                            className="w-full h-full object-cover transform transition-transform duration-500 group-hover:scale-105"
+                          />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <BookOpen className="w-16 h-16 text-primary/40" />
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/12 to-accent/12">
+                          <motion.svg width="140" height="120" viewBox="0 0 140 120" initial={{ scale: 0.98 }} animate={{ scale: [0.98, 1.02, 0.99] }} transition={{ duration: 6, repeat: Infinity }}>
+                            <defs>
+                              <linearGradient id={`cgrad-${i}`} x1="0" x2="1">
+                                <stop offset="0%" stopColor="#7c3aed" />
+                                <stop offset="100%" stopColor="#06b6d4" />
+                              </linearGradient>
+                            </defs>
+                            <rect x="0" y="0" width="140" height="120" rx="10" fill={`url(#cgrad-${i})`} opacity="0.12" />
+                            <motion.circle cx="30" cy="40" r="12" fill="#fff" animate={{ y: [0, -6, 0] }} transition={{ duration: 3, repeat: Infinity }} />
+                            <motion.circle cx="110" cy="50" r="8" fill="#fff" animate={{ y: [0, 5, 0] }} transition={{ duration: 4, repeat: Infinity }} />
+                            <circle cx="70" cy="85" r="10" fill="#fff" opacity="0.9" />
+                            <text x="24" y="95" fontSize="28" fontWeight="700" fill="#fff">{String((course.title || 'KG').split(' ').map(s => s[0]).join('').slice(0,3))}</text>
+                          </motion.svg>
                         </div>
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-80" />
