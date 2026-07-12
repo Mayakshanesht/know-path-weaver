@@ -440,6 +440,7 @@ export default function CoursesManager() {
               onEdit={() => openCourseDialog(course)}
               onDelete={() => handleDeleteCourse(course.id)}
               onRefresh={fetchCourses}
+              setLiveMessage={setLiveMessage}
             />
           ))}
         </div>
@@ -454,11 +455,13 @@ function CourseCard({
   onEdit,
   onDelete,
   onRefresh,
+  setLiveMessage,
 }: {
   course: CourseWithPaths;
   onEdit: () => void;
   onDelete: () => void;
   onRefresh: () => void;
+  setLiveMessage?: (msg: string) => void;
 }) {
   const { toast } = useToast();
   const [expanded, setExpanded] = useState(false);
@@ -477,7 +480,7 @@ function CourseCard({
         if (error) throw error;
       }
       toast({ title: 'Modules reordered' });
-      setLiveMessage(`Moved module to position ${toIndex + 1}`);
+      setLiveMessage && setLiveMessage(`Moved module to position ${toIndex + 1}`);
       onRefresh();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -691,34 +694,14 @@ function LearningPathCard({
         if (error) throw error;
       }
       toast({ title: 'Capsules reordered' });
-      setLiveMessage(`Moved capsule to position ${toIndex + 1}`);
+      setLiveMessage && setLiveMessage(`Moved capsule to position ${toIndex + 1}`);
       onRefresh();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
   };
 
-  const movePath = async (fromIndex: number, toIndex: number) => {
-    if (!allPaths) return;
-    if (fromIndex === toIndex) return;
-    const reordered = [...allPaths];
-    const [item] = reordered.splice(fromIndex, 1);
-    reordered.splice(toIndex, 0, item);
-
-    try {
-      for (let i = 0; i < reordered.length; i++) {
-        const { error } = await supabase
-          .from('learning_paths')
-          .update({ order_index: i })
-          .eq('id', reordered[i].id);
-        if (error) throw error;
-      }
-      toast({ title: 'Modules reordered' });
-      onRefresh();
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    }
-  };
+  // movePath is handled at the CourseCard level via passed-in moveUp/moveDown handlers.
 
   return (
     <div className="bg-secondary/50 rounded-lg p-4">

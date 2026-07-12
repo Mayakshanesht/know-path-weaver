@@ -11,6 +11,9 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BookOpen, Clock, IndianRupee, Euro, Info, CreditCard, QrCode, Mail, Phone } from 'lucide-react';
 import paymentQR from '@/assets/payment-qr.png?url';
+import aiThumb from '@/assets/thumbnails/ai-bootcamp.svg?url';
+import mlThumb from '@/assets/thumbnails/ml-fundamentals.svg?url';
+import roboticsThumb from '@/assets/thumbnails/robotics-projects.svg?url';
 
 export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -88,98 +91,100 @@ export default function Courses() {
             </motion.div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {courses.map((course, i) => (
-                <motion.div
-                  key={course.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  whileHover={{ y: -6 }}
-                  transition={{ duration: 0.6, delay: i * 0.06 }}
-                >
-                  <Card className="overflow-hidden h-full flex flex-col transform-gpu will-change-transform hover:shadow-xl transition-shadow duration-300">
-                    {/* Thumbnail */}
-                    <div className="relative h-48 bg-gradient-to-br from-primary/20 to-accent/20 group overflow-hidden">
-                      {course.thumbnail_url ? (
+              {courses.map((course, i) => {
+                const curatedMap: Record<string, string> = {
+                  'AI Bootcamp for Autonomous Driving': aiThumb,
+                  'ML Fundamentals': mlThumb,
+                  'Robotics Projects': roboticsThumb,
+                };
+                const curated = curatedMap[course.title as string];
+
+                return (
+                  <motion.div
+                    key={course.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    whileHover={{ y: -6 }}
+                    transition={{ duration: 0.6, delay: i * 0.06 }}
+                  >
+                    <Card className="overflow-hidden h-full flex flex-col transform-gpu will-change-transform hover:shadow-xl transition-shadow duration-300">
+                      <div className="relative h-48 bg-gradient-to-br from-primary/20 to-accent/20 group overflow-hidden">
+                        {course.thumbnail_url ? (
                           <img
                             src={course.thumbnail_url}
                             alt={course.title}
                             loading="lazy"
                             className="w-full h-full object-cover transform transition-transform duration-500 group-hover:scale-105"
                           />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/12 to-accent/12">
-                          <motion.svg width="140" height="120" viewBox="0 0 140 120" initial={{ scale: 0.98 }} animate={{ scale: [0.98, 1.02, 0.99] }} transition={{ duration: 6, repeat: Infinity }}>
-                            <defs>
-                              <linearGradient id={`cgrad-${i}`} x1="0" x2="1">
-                                <stop offset="0%" stopColor="#7c3aed" />
-                                <stop offset="100%" stopColor="#06b6d4" />
-                              </linearGradient>
-                            </defs>
-                            <rect x="0" y="0" width="140" height="120" rx="10" fill={`url(#cgrad-${i})`} opacity="0.12" />
-                            <motion.circle cx="30" cy="40" r="12" fill="#fff" animate={{ y: [0, -6, 0] }} transition={{ duration: 3, repeat: Infinity }} />
-                            <motion.circle cx="110" cy="50" r="8" fill="#fff" animate={{ y: [0, 5, 0] }} transition={{ duration: 4, repeat: Infinity }} />
-                            <circle cx="70" cy="85" r="10" fill="#fff" opacity="0.9" />
-                            <text x="24" y="95" fontSize="28" fontWeight="700" fill="#fff">{String((course.title || 'KG').split(' ').map(s => s[0]).join('').slice(0,3))}</text>
-                          </motion.svg>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-80" />
-                      <Badge className="absolute top-3 left-3 bg-accent text-accent-foreground">Beta</Badge>
-                      <div className="absolute bottom-3 right-3 bg-gradient-to-r from-black/40 to-transparent text-white text-xs px-3 py-1 rounded">Final Projects • {course.capsules_count ?? 0}</div>
-                    </div>
-
-                    <CardHeader className="flex-1">
-                      <h3 className="text-xl font-semibold line-clamp-2">{course.title}</h3>
-                      <p className="text-muted-foreground line-clamp-3 mt-2">
-                        {course.description || 'No description available'}
-                      </p>
-                    </CardHeader>
-
-                    <CardContent>
-                      <div className="flex items-center justify-between gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-1">
-                            <IndianRupee className="w-4 h-4" />
-                            <span className="font-medium">₹{course.price_india || 0}</span>
+                        ) : curated ? (
+                          <img src={curated} alt={course.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/12 to-accent/12">
+                            <motion.svg width="140" height="120" viewBox="0 0 140 120" initial={{ scale: 0.98 }} animate={{ scale: [0.98, 1.02, 0.99] }} transition={{ duration: 6, repeat: Infinity }}>
+                              <defs>
+                                <linearGradient id={`cgrad-${i}`} x1="0" x2="1">
+                                  <stop offset="0%" stopColor="#7c3aed" />
+                                  <stop offset="100%" stopColor="#06b6d4" />
+                                </linearGradient>
+                              </defs>
+                              <rect x="0" y="0" width="140" height="120" rx="10" fill={`url(#cgrad-${i})`} opacity="0.12" />
+                              <motion.circle cx="30" cy="40" r="12" fill="#fff" animate={{ y: [0, -6, 0] }} transition={{ duration: 3, repeat: Infinity }} />
+                              <motion.circle cx="110" cy="50" r="8" fill="#fff" animate={{ y: [0, 5, 0] }} transition={{ duration: 4, repeat: Infinity }} />
+                              <circle cx="70" cy="85" r="10" fill="#fff" opacity="0.9" />
+                              <text x="24" y="95" fontSize="28" fontWeight="700" fill="#fff">{String((course.title || 'KG').split(' ').map(s => s[0]).join('').slice(0,3))}</text>
+                            </motion.svg>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Euro className="w-4 h-4" />
-                            <span className="font-medium">€{course.price_international || 0}</span>
-                          </div>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {course.modules_count ?? 0} modules • {course.capsules_count ?? 0} capsules
-                        </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-80" />
+                        <Badge className="absolute top-3 left-3 bg-accent text-accent-foreground">Beta</Badge>
+                        <div className="absolute bottom-3 right-3 bg-gradient-to-r from-black/40 to-transparent text-white text-xs px-3 py-1 rounded">Final Projects • {course.capsules_count ?? 0}</div>
                       </div>
 
-                      {(course.bank_details || course.payment_reference_code) && (
-                        <div className="mt-4 rounded-lg border bg-muted/30 p-3 space-y-2">
-                          {course.payment_reference_code && (
-                            <div className="flex items-center justify-between gap-2 text-xs">
-                              <span className="text-muted-foreground">Reference</span>
-                              <span className="font-mono">{course.payment_reference_code}</span>
-                            </div>
-                          )}
-                          {course.bank_details && (
-                            <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4">
-                              {course.bank_details}
-                            </p>
-                          )}
-                          <p className="text-xs text-muted-foreground">
-                            Pay first, then enroll from the course page.
-                          </p>
-                        </div>
-                      )}
-                    </CardContent>
+                      <CardHeader className="flex-1">
+                        <h3 className="text-xl font-semibold line-clamp-2">{course.title}</h3>
+                        <p className="text-muted-foreground line-clamp-3 mt-2">{course.description || 'No description available'}</p>
+                      </CardHeader>
 
-                    <CardFooter>
-                      <Button asChild className="w-full">
-                        <Link to={`/courses/${course.id}`}>View Course</Link>
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                </motion.div>
-              ))}
+                      <CardContent>
+                        <div className="flex items-center justify-between gap-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-1">
+                              <IndianRupee className="w-4 h-4" />
+                              <span className="font-medium">₹{course.price_india || 0}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Euro className="w-4 h-4" />
+                              <span className="font-medium">€{course.price_international || 0}</span>
+                            </div>
+                          </div>
+                          <div className="text-xs text-muted-foreground">{course.modules_count ?? 0} modules • {course.capsules_count ?? 0} capsules</div>
+                        </div>
+
+                        {(course.bank_details || course.payment_reference_code) && (
+                          <div className="mt-4 rounded-lg border bg-muted/30 p-3 space-y-2">
+                            {course.payment_reference_code && (
+                              <div className="flex items-center justify-between gap-2 text-xs">
+                                <span className="text-muted-foreground">Reference</span>
+                                <span className="font-mono">{course.payment_reference_code}</span>
+                              </div>
+                            )}
+                            {course.bank_details && (
+                              <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4">{course.bank_details}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground">Pay first, then enroll from the course page.</p>
+                          </div>
+                        )}
+                      </CardContent>
+
+                      <CardFooter>
+                        <Button asChild className="w-full">
+                          <Link to={`/courses/${course.id}`}>View Course</Link>
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </div>

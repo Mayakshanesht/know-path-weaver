@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80" role="img" aria-labelledby="title">
+  <title id="title">AI Bootcamp Thumbnail</title>
+  <defs>
+    <linearGradient id="g1" x1="0" x2="1">
+      <stop offset="0%" stop-color="#7c3aed" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+  </defs>
+  <rect width="120" height="80" rx="10" fill="url(#g1)" />
+  <g transform="translate(12,12)" fill="#fff">
+    <rect x="0" y="0" width="36" height="36" rx="6" opacity="0.95"/>
+    <rect x="44" y="6" width="64" height="8" rx="4" opacity="0.95"/>
+    <rect x="44" y="22" width="48" height="8" rx="4" opacity="0.9"/>
+  </g>
+  <text x="8" y="72" font-family="Inter, Arial" font-size="10" fill="#ffffff" opacity="0.9">AI Bootcamp</text>
+</svg>
