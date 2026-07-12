@@ -93,24 +93,26 @@ export default function Courses() {
                   key={course.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: i * 0.1 }}
+                  whileHover={{ y: -6 }}
+                  transition={{ duration: 0.6, delay: i * 0.06 }}
                 >
-                  <Card className="overflow-hidden h-full flex flex-col card-hover">
+                  <Card className="overflow-hidden h-full flex flex-col transform-gpu will-change-transform hover:shadow-xl transition-shadow duration-300">
                     {/* Thumbnail */}
-                      <div className="relative h-48 bg-gradient-to-br from-primary/20 to-accent/20 group-hover:scale-105 transition-transform duration-300">
+                    <div className="relative h-48 bg-gradient-to-br from-primary/20 to-accent/20 group overflow-hidden">
                       {course.thumbnail_url ? (
                         <img
                           src={course.thumbnail_url}
                           alt={course.title}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover transform transition-transform duration-500 group-hover:scale-105"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <BookOpen className="w-16 h-16 text-primary/40" />
                         </div>
                       )}
-                        <Badge className="absolute top-3 left-3 bg-accent text-accent-foreground">Beta</Badge>
-                        <div className="absolute bottom-3 right-3 bg-gradient-to-r from-black/30 to-transparent text-white text-xs px-3 py-1 rounded">Final Projects • {course.capsules_count ?? 0}</div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-80" />
+                      <Badge className="absolute top-3 left-3 bg-accent text-accent-foreground">Beta</Badge>
+                      <div className="absolute bottom-3 right-3 bg-gradient-to-r from-black/40 to-transparent text-white text-xs px-3 py-1 rounded">Final Projects • {course.capsules_count ?? 0}</div>
                     </div>
 
                     <CardHeader className="flex-1">

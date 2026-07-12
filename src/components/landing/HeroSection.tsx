@@ -7,25 +7,25 @@ export default function HeroSection() {
   return (
     <section className="relative min-h-[90vh] flex items-center overflow-hidden">
       {/* Background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-accent/5" />
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-background to-accent/6" />
       
       {/* Animated background nodes + SVG wave */}
       <div className="absolute inset-0 overflow-hidden">
         {[...Array(6)].map((_, i) => (
           <motion.div
             key={i}
-            className="absolute w-40 h-40 rounded-full bg-gradient-to-br from-accent/10 to-primary/8 blur-2xl"
+            className="absolute w-44 h-44 md:w-40 md:h-40 rounded-full bg-gradient-to-br from-accent/10 to-primary/12 blur-3xl"
             style={{
               left: `${10 + i * 14}%`,
               top: `${10 + (i % 4) * 20}%`,
             }}
             animate={{
-              y: [0, -18, 0],
+              y: [0, -12 - (i % 3) * 6, 0],
               x: [0, (i % 2 === 0 ? -6 : 6), 0],
-              scale: [1, 1.05, 1],
+              scale: [1, 1.03, 1],
             }}
             transition={{
-              duration: 6 + i,
+              duration: 6 + i * 0.8,
               repeat: Infinity,
               delay: i * 0.4,
             }}
@@ -112,12 +112,14 @@ export default function HeroSection() {
             transition={{ duration: 0.8, delay: 0.4 }}
           >
             <motion.div
-              className="bg-gradient-to-br from-white/70 to-primary/5 border border-gray-200 rounded-xl shadow-2xl p-6 max-w-2xl w-full backdrop-blur"
-              whileHover={{ y: -6, scale: 1.01 }}
-              transition={{ type: 'spring', stiffness: 200 }}
+              className="bg-gradient-to-br from-white/80 to-primary/6 border border-gray-100 rounded-2xl shadow-2xl p-6 max-w-2xl w-full backdrop-blur-lg hover:shadow-2xl group"
+              whileHover={{ y: -8, scale: 1.02, rotate: 0.5 }}
+              transition={{ type: 'spring', stiffness: 220 }}
             >
               <div className="flex items-start gap-4">
-                <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-lg">KG</div>
+                <motion.div className="w-20 h-20 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-lg" whileHover={{ rotate: 6 }}>
+                  KG
+                </motion.div>
                 <div>
                   <div className="text-sm text-muted-foreground">Featured Course</div>
                   <div className="font-semibold text-xl">AI Bootcamp for Autonomous Driving</div>
