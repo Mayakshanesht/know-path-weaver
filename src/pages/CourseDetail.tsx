@@ -159,13 +159,12 @@ export default function CourseDetail() {
       });
 
       setEnrollDialogOpen(false);
+      setReceiptFile(null);
+      setPaymentReference('');
       fetchCourseData();
-      
-      // For demo purposes, auto-approve and redirect to classroom
-      // In production, you'd wait for admin approval
-      setTimeout(() => {
-        navigate(`/learn/${course.id}`);
-      }, 2000);
+
+      // Do not redirect while enrollment is still pending approval.
+      // The admin must approve the payment receipt before access is granted.
     } catch (error: any) {
       toast({
         title: 'Enrollment failed',
@@ -471,16 +470,18 @@ export default function CourseDetail() {
                               <QrCode className="w-5 h-5" />
                               PhonePay QR Code
                             </h4>
-                            <img 
-                              src={paymentQR} 
-                              alt="Payment QR Code" 
-                              className="w-32 h-32 mx-auto mb-2 border rounded-lg bg-white p-2"
-                              onError={(e) => {
-                                console.error('QR image failed to load', e);
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                              }}
-                            />
+                            <div className="mx-auto mb-2 w-full max-w-[260px] rounded-2xl border border-border bg-white p-2">
+                              <img
+                                src={paymentQR}
+                                alt="Payment QR Code"
+                                className="w-full h-auto aspect-square object-contain"
+                                onError={(e) => {
+                                  console.error('QR image failed to load', e);
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                }}
+                              />
+                            </div>
                             <p className="text-xs text-muted-foreground text-center">
                               Scan to pay via PhonePay
                             </p>

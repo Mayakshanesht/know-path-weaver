@@ -10,6 +10,7 @@ import { Progress as ProgressBar } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { downloadCertificate } from '@/lib/certificate';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   ChevronLeft,
@@ -29,6 +30,7 @@ import {
   FileText,
   Image,
   FileType,
+  Award,
 } from 'lucide-react';
 
 interface CapsuleWithStatus extends Omit<CapsuleWithProgress, 'is_locked'> {
@@ -322,6 +324,49 @@ export default function LearnCourse() {
 
     const { icon: Icon, label } = config[content.content_type];
 
+    const isColabUrl = (url: string) => url.includes('colab.research.google.com');
+    const renderColabLinkFallback = (url: string) => (
+      <div className="w-full rounded-3xl border border-border bg-muted p-6 text-slate-100">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-primary">
+              <ExternalLink className="w-5 h-5" />
+              <h3 className="text-lg font-semibold">Google Colab Notebook</h3>
+            </div>
+            <p className="text-sm text-muted-foreground max-w-2xl">
+              Google Colab blocks embedding in iframes. Open the notebook in a new tab for the best experience.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(url, '_blank', 'noreferrer')}
+            className="w-full sm:w-auto"
+          >
+            <ExternalLink className="w-4 h-4 mr-2" />
+            Open in Colab
+          </Button>
+        </div>
+
+        <div className="mt-4 rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300 border border-slate-700">
+          <p className="font-medium mb-2">Notebook URL</p>
+          <p className="break-words">{url}</p>
+        </div>
+
+        <div className="mt-4 rounded-2xl bg-yellow-950/30 border border-yellow-800 p-4 text-sm text-yellow-100">
+          <p className="font-medium">Why this happens</p>
+          <p>
+            Google Colab sets security headers that prevent this notebook from loading inside an LMS iframe.
+            Opening it directly avoids the blocked frame and ensures the notebook loads correctly.
+          </p>
+        </div>
+      </div>
+    );
+
+    if ((content.content_type === 'weblink' || content.content_type === 'google_drive') && isColabUrl(content.content_value)) {
+      return renderColabLinkFallback(content.content_value);
+    }
+
     switch (content.content_type) {
       case 'google_drive':
         return (
@@ -400,27 +445,7 @@ export default function LearnCourse() {
         );
       
       case 'colab':
-        return (
-          <div className="w-full h-full flex flex-col">
-            <iframe
-              src={content.content_value}
-              className="w-full h-full border-0"
-              allowFullScreen
-              title={content.title || 'Google Colab Notebook'}
-            />
-            <div className="mt-2 p-2 bg-secondary/50">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(content.content_value, '_blank')}
-                className="w-full"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Open in Colab
-              </Button>
-            </div>
-          </div>
-        );
+        return renderColabLinkFallback(content.content_value);
       
       case 'weblink':
         return (
@@ -534,6 +559,7 @@ export default function LearnCourse() {
     0
   );
   const overallProgress = totalCapsules > 0 ? Math.round((completedCapsules / totalCapsules) * 100) : 0;
+  const courseCompleted = totalCapsules > 0 && overallProgress === 100;
 
   if (loading) {
     return (
@@ -642,6 +668,31 @@ export default function LearnCourse() {
             {completedCapsules}/{totalCapsules} completed
           </Badge>
         </header>
+
+        {courseCompleted && (
+          <div className="mx-auto mb-6 w-full max-w-4xl rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold">Course Completed</p>
+                <p className="text-sm text-emerald-700">Your certificate is ready to download.</p>
+              </div>
+              <Button
+                onClick={() =>
+                  downloadCertificate({
+                    studentName: authUser?.profile?.full_name || 'Learner',
+                    courseTitle: course?.title || 'Course',
+                    completionDate: new Date().toLocaleDateString(),
+                    instructorName: 'Mayur Rajendra Waghchoure',
+                    organization: 'KnowGraph',
+                  })
+                }
+              >
+                <Award className="w-4 h-4 mr-2" />
+                Download Certificate
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Content Area */}
         <div className="flex-1 p-4 md:p-8">

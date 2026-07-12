@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { EnrollmentWithCourse, Progress } from '@/types/database';
+import { downloadCertificate } from '@/lib/certificate';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +20,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowRight,
+  Award,
 } from 'lucide-react';
 
 interface EnrollmentWithProgress extends EnrollmentWithCourse {
@@ -210,13 +212,31 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </CardContent>
-                          <CardFooter>
+                          <CardFooter className="flex flex-col gap-2">
                             <Button asChild className="w-full">
                               <Link to={`/learn/${enrollment.course_id}`}>
                                 <Play className="w-4 h-4 mr-2" />
                                 Continue
                               </Link>
                             </Button>
+                            {enrollment.progressPercent === 100 && (
+                              <Button
+                                variant="secondary"
+                                className="w-full"
+                                onClick={() =>
+                                  downloadCertificate({
+                                    studentName: authUser?.profile?.full_name || 'Learner',
+                                    courseTitle: enrollment.courses.title,
+                                    completionDate: new Date().toLocaleDateString(),
+                                    instructorName: 'Mayur Rajendra Waghchoure',
+                                    organization: 'KnowGraph',
+                                  })
+                                }
+                              >
+                                <Award className="w-4 h-4 mr-2" />
+                                Download Certificate
+                              </Button>
+                            )}
                           </CardFooter>
                         </Card>
                       </motion.div>

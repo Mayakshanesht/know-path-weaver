@@ -22,6 +22,8 @@ export default function QuizPage() {
 
   const [quiz, setQuiz] = useState<QuizWithQuestions | null>(null);
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
+  const [activeAttempt, setActiveAttempt] = useState<QuizAttempt | null>(null);
+  const [attemptCount, setAttemptCount] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -65,20 +67,25 @@ export default function QuizPage() {
 
     setQuiz(quizData as unknown as QuizWithQuestions);
 
-    // Check for existing attempt
-    const { data: attemptData } = await supabase
+    const { data: attemptsData, error: attemptsError } = await supabase
       .from('quiz_attempts')
       .select('*')
       .eq('quiz_id', quizId)
       .eq('user_id', authUser.id)
-      .not('completed_at', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order('created_at', { ascending: false });
 
-    if (attemptData) {
-      setAttempt(attemptData as unknown as QuizAttempt);
+    if (attemptsError) {
+      console.error('Error fetching quiz attempts:', attemptsError);
     }
+
+    const allAttempts = attemptsData || [];
+    const completedAttempt = allAttempts.find((a) => a.completed_at) as QuizAttempt | null;
+    const inProgressAttempt = allAttempts.find((a) => !a.completed_at) as QuizAttempt | null;
+
+    setAttemptCount(allAttempts.length);
+    setAttempt(completedAttempt);
+    setActiveAttempt(inProgressAttempt);
+    setAnswers((inProgressAttempt?.answers as Record<string, any>) || {});
 
     setLoading(false);
   };
@@ -86,13 +93,25 @@ export default function QuizPage() {
   const startQuiz = async () => {
     if (!quiz || !authUser) return;
 
+    if (quiz.max_attempts && attemptCount >= quiz.max_attempts && !activeAttempt) {
+      toast({
+        title: 'Max attempts reached',
+        description: 'You have used all allowed attempts for this quiz.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setStarted(true);
     if (quiz.time_limit_minutes) {
       setTimeLeft(quiz.time_limit_minutes * 60);
     }
 
-    // Create new attempt
-    const { error: attemptError } = await supabase
+    if (activeAttempt) {
+      return;
+    }
+
+    const { data: newAttempt, error: attemptError } = await supabase
       .from('quiz_attempts')
       .insert({
         quiz_id: quizId,
@@ -102,7 +121,9 @@ export default function QuizPage() {
         score: null,
         max_score: quiz.quiz_questions.reduce((sum, q) => sum + (q.points || 1), 0),
         passed: null,
-      });
+      })
+      .select()
+      .single();
 
     if (attemptError) {
       toast({
@@ -112,6 +133,9 @@ export default function QuizPage() {
       });
       return;
     }
+
+    setActiveAttempt(newAttempt as QuizAttempt);
+    setAttemptCount((count) => count + 1);
   };
 
   const handleSubmit = async () => {
@@ -151,8 +175,7 @@ export default function QuizPage() {
     const percentage = Math.round((score / maxScore) * 100);
     const passed = quiz.passing_score ? percentage >= quiz.passing_score : null;
 
-    // Update attempt
-    const { error: updateError } = await supabase
+    const updateQuery = supabase
       .from('quiz_attempts')
       .update({
         completed_at: new Date().toISOString(),
@@ -160,10 +183,18 @@ export default function QuizPage() {
         score,
         max_score: maxScore,
         passed,
-      })
-      .eq('quiz_id', quizId)
-      .eq('user_id', authUser.id)
-      .is('completed_at', null);
+      });
+
+    if (activeAttempt?.id) {
+      updateQuery.eq('id', activeAttempt.id);
+    } else {
+      updateQuery
+        .eq('quiz_id', quizId)
+        .eq('user_id', authUser.id)
+        .is('completed_at', null);
+    }
+
+    const { error: updateError, data: updatedData } = await updateQuery.select().single();
 
     if (updateError) {
       toast({
@@ -172,6 +203,9 @@ export default function QuizPage() {
         variant: 'destructive',
       });
     } else {
+      if (updatedData) {
+        setAttempt(updatedData as QuizAttempt);
+      }
       toast({
         title: 'Quiz Submitted!',
         description: `Your score: ${score}/${maxScore} (${percentage}%)`,
@@ -296,7 +330,7 @@ export default function QuizPage() {
                 {quiz.description && (
                   <p className="text-muted-foreground">{quiz.description}</p>
                 )}
-                <div className="space-y-2 text-sm">
+                        <div className="space-y-2 text-sm">
                   {quiz.time_limit_minutes && (
                     <p>• Time limit: {quiz.time_limit_minutes} minutes</p>
                   )}
@@ -306,10 +340,13 @@ export default function QuizPage() {
                   {quiz.max_attempts && (
                     <p>• Maximum attempts: {quiz.max_attempts}</p>
                   )}
+                  {quiz.max_attempts && (
+                    <p>• Attempts used: {attemptCount}/{quiz.max_attempts}</p>
+                  )}
                   <p>• Total questions: {quiz.quiz_questions.length}</p>
                 </div>
-                <Button onClick={startQuiz} className="w-full" size="lg">
-                  Start Quiz
+                <Button onClick={startQuiz} className="w-full" size="lg" disabled={quiz.max_attempts ? attemptCount >= quiz.max_attempts && !activeAttempt : false}>
+                  {activeAttempt ? 'Resume Quiz' : 'Start Quiz'}
                 </Button>
               </CardContent>
             </Card>
