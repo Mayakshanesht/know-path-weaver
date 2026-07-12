@@ -470,7 +470,7 @@ export default function CourseDetail() {
                               <QrCode className="w-5 h-5" />
                               PhonePay QR Code
                             </h4>
-                            <div className="mx-auto mb-2 w-full max-w-[260px] rounded-2xl border border-border bg-white p-2">
+                            <div className="mx-auto mb-2 w-full max-w-[380px] rounded-2xl border border-border bg-white p-3">
                               <img
                                 src={paymentQR}
                                 alt="Payment QR Code"

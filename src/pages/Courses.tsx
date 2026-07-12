@@ -298,7 +298,7 @@ export default function Courses() {
                     <img 
                       src={paymentQR} 
                       alt="Payment QR Code" 
-                      className="w-48 h-48 mx-auto mb-4 border rounded-lg"
+                      className="w-64 h-64 mx-auto mb-4 border rounded-lg"
                       onError={(e) => {
                         console.error('QR image failed to load', e);
                         const target = e.target as HTMLImageElement;
