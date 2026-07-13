@@ -69,7 +69,32 @@ Your audience are practitioners. They can tell the difference between a real tec
 - Write like an engineer who respects the reader's time.
 
 LinkedIn: short lines, real line breaks, one idea per paragraph. Earn the "see more" click with the first line. Under 200 words.
-Email: a subject line that says what is inside, not a tease. Body under 200 words, one clear call to action.`;
+Email: a subject line that says what is inside, not a tease. Body under 200 words, one clear call to action.
+
+Use ONLY the facts given to you below. If a fact is not there, it does not go in the post.`;
+
+/**
+ * Things about the platform that are true, so the model has them to hand rather than
+ * inventing plausible-sounding equivalents.
+ *
+ * Everything here must stay true. This text is what the model treats as ground truth,
+ * so a stale line becomes a false claim in front of paying customers.
+ */
+const PLATFORM_FACTS = `
+PLATFORM
+- KnowGraph teaches autonomous driving and applied AI to working engineers.
+- Sign up / enroll: https://know-path-weaver.vercel.app
+- Learners get a certificate on course completion, downloadable as an image.
+- Learners can download an invoice for every approved enrollment.
+- Payment is by PhonePe QR (India) or bank transfer; an admin approves each enrollment.
+
+RECENT ANNOUNCEMENT — the platform has moved to new infrastructure
+- Existing learners: courses, enrollments and progress are all preserved.
+- They sign in with the password they already use, and are asked to set a new one, ONCE.
+  This is unavoidable: password hashes cannot be transferred between systems.
+- Nothing else is required of them, and nothing has been lost.
+- New learners: just enroll at the link above.
+`.trim();
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -114,30 +139,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Ground the copy in the real course, so the model has facts to work from
-    // rather than adjectives to invent.
-    let courseContext = 'No specific course — write about the platform in general.';
-    if (courseId) {
-      const { data: course } = await asCaller
-        .from('courses')
-        .select('title, description, curriculum_preview, price_india, price_international')
-        .eq('id', courseId)
-        .maybeSingle();
+    // Ground the copy in real facts, so the model has something to work from rather
+    // than adjectives to invent. A campaign with no course selected is usually a
+    // platform announcement, so it gets the whole catalogue plus the platform facts —
+    // otherwise the model has nothing concrete and reaches for hype.
+    const { data: courses } = await asCaller
+      .from('courses')
+      .select('id, title, tagline, description, syllabus, price_india, price_international')
+      .eq('is_published', true);
 
-      if (course) {
-        courseContext = [
-          `Course: ${course.title}`,
-          course.description ? `Description: ${course.description}` : '',
-          course.curriculum_preview ? `Curriculum: ${course.curriculum_preview}` : '',
-          course.price_india ? `Price (India): INR ${course.price_india}` : '',
-          course.price_international
-            ? `Price (international): EUR ${course.price_international}`
-            : '',
-        ]
-          .filter(Boolean)
-          .join('\n');
-      }
-    }
+    const describe = (c: NonNullable<typeof courses>[number]) => {
+      const s = (c.syllabus ?? {}) as {
+        outcomes?: string[];
+        modules?: { title: string }[];
+        projects?: { name: string }[];
+      };
+      return [
+        `## ${c.title}`,
+        c.tagline ? `Tagline: ${c.tagline}` : '',
+        c.description ? `About: ${c.description}` : '',
+        s.outcomes?.length ? `Covers: ${s.outcomes.join('; ')}` : '',
+        s.modules?.length ? `Modules: ${s.modules.map((m) => m.title).join('; ')}` : '',
+        s.projects?.length ? `Projects: ${s.projects.map((p) => p.name).join('; ')}` : '',
+        c.price_india ? `Price: INR ${c.price_india} (India) / EUR ${c.price_international} (international)` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+    };
+
+    const selected = courseId ? courses?.find((c) => c.id === courseId) : null;
+
+    const courseContext = selected
+      ? describe(selected)
+      : (courses ?? []).map(describe).join('\n\n');
+
+    const platformContext = PLATFORM_FACTS;
 
     const result = await structured<{ variants: Variant[] }>(groq(), {
       system: SYSTEM,
@@ -148,14 +184,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // charges input + this number together.
       maxTokens: 2500,
       prompt:
-        `Write three ${channel === 'linkedin' ? 'LinkedIn posts' : 'marketing emails'} for this course.\n\n` +
-        `${courseContext}\n\n` +
+        `Write three ${channel === 'linkedin' ? 'LinkedIn posts' : 'marketing emails'} for KnowGraph.\n\n` +
+        `${platformContext}\n\n` +
+        `${selected ? 'THE COURSE THIS IS ABOUT' : 'ALL COURSES ON THE PLATFORM'}\n${courseContext}\n\n` +
         `Goal: ${objective || 'drive qualified enrollments'}\n` +
         `Audience: ${audience || 'working engineers moving into autonomous driving and applied AI'}\n\n` +
         `Make the three genuinely different bets — not three rewordings of one idea. ` +
         `For example: one leading on a concrete technical outcome, one on the gap between ` +
-        `knowing theory and shipping, one on who this is and is not for. ` +
-        `Every factual claim must be supported by the course details above.`,
+        `knowing theory and shipping, one on who this is and is not for.\n\n` +
+        `Every factual claim must be supported by the facts above. If the goal is an ` +
+        `announcement, lead with what an existing learner has to DO, since that is the ` +
+        `only part of the post that is urgent to them — then cover what is new for ` +
+        `everyone else.`,
     });
 
     const admin = supabaseAdmin();
