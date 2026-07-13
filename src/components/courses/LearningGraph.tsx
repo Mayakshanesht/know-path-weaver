@@ -27,6 +27,10 @@ export interface GraphNode {
 /** Groups a module into a stage of the pipeline, from its title. */
 function stageOf(title: string): { label: string; tone: string } {
   const t = title.toLowerCase();
+  if (/^welcome/.test(t))
+    return { label: 'Start', tone: 'text-cyan-300 border-cyan-400/30 bg-cyan-400/10' };
+  if (/^what next|^wrap/.test(t))
+    return { label: 'What next', tone: 'text-cyan-300 border-cyan-400/30 bg-cyan-400/10' };
   if (/foundation|programming|python|c\+\+|data structure|lab|workflow|primer/.test(t))
     return { label: 'Foundations', tone: 'text-slate-400 border-slate-500/30 bg-slate-500/10' };
   if (/perception|vision|deep learning|machine learning|reinforcement|supervised|ml/.test(t))
