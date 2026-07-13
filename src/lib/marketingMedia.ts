@@ -31,31 +31,18 @@ export interface MarketingClip {
 }
 
 /**
- * What each clip is. The caption matters as much as the image: it has to say what the learner
- * is looking at and what they built, not "a visualisation".
+ * What each clip is, in the order they are shown.
+ *
+ * The real footage leads — segmentation and optical flow on actual KITTI frames are arresting
+ * in a way a matplotlib plot is not, and the first clip is the one that decides whether anyone
+ * keeps watching. The plotted animations (planner, AEB, ACC, prediction) follow: they are the
+ * substance, but they need the footage to earn the attention first.
+ *
+ * The caption matters as much as the clip: it has to say what the learner is looking at and
+ * what they built, not "a visualisation".
  */
 const CATALOGUE: Array<Omit<MarketingClip, 'url' | 'isVideo'>> = [
-  {
-    key: 'motion-planning',
-    title: 'A planner deciding what to do next',
-    caption:
-      'A*, a finite-state behaviour planner and a lattice local planner, running together: the global route, the live behaviour state, and the trajectories the vehicle is choosing between.',
-    courseMatch: 'Motion Planning',
-  },
-  {
-    key: 'aeb',
-    title: 'Emergency braking, judging a closing gap',
-    caption:
-      'Distance, relative speed, and the classifier\'s call — SAFE or BRAKE — with the brake value it commands. You train this model yourself, and you choose the threshold that decides between a rear-ending and a collision.',
-    courseMatch: 'Advanced Driver Assistance',
-  },
-  {
-    key: 'acc',
-    title: 'Adaptive cruise control holding a gap',
-    caption:
-      'The PID controller you write, tracking a lead vehicle and keeping a safe following distance as it slows and speeds up — then losing it, and recovering.',
-    courseMatch: 'Vehicle Dynamics',
-  },
+  // --- real footage: this is what makes someone stop scrolling ---
   {
     key: 'perception',
     title: 'Instance segmentation on real KITTI frames',
@@ -67,7 +54,30 @@ const CATALOGUE: Array<Omit<MarketingClip, 'url' | 'isVideo'>> = [
     key: 'optical-flow',
     title: 'Optical flow — motion, straight from the pixels',
     caption:
-      'RAFT on a KITTI sequence. Every pixel gets a motion vector, which is how a monocular camera can tell you something is moving and roughly how fast.',
+      'RAFT on a KITTI sequence. Every pixel gets a motion vector, which is how a single camera can tell you something is moving, and roughly how fast.',
+  },
+
+  // --- the plotted animations: the substance, once the footage has earned the attention ---
+  {
+    key: 'motion-planning',
+    title: 'A planner deciding what to do next',
+    caption:
+      'A*, a finite-state behaviour planner and a lattice local planner running together: the global route, the live behaviour state, and the trajectories the vehicle is choosing between.',
+    courseMatch: 'Motion Planning',
+  },
+  {
+    key: 'aeb',
+    title: 'Emergency braking, judging a closing gap',
+    caption:
+      'Distance, relative speed, and the classifier\'s call — SAFE or BRAKE — with the brake value it commands. You train this model, and you choose the threshold that decides between a rear-ending and a collision.',
+    courseMatch: 'Advanced Driver Assistance',
+  },
+  {
+    key: 'acc',
+    title: 'Adaptive cruise control holding a gap',
+    caption:
+      'The PID controller you write, tracking a lead vehicle and keeping a safe following distance as it slows and speeds up — then losing it, and recovering.',
+    courseMatch: 'Vehicle Dynamics',
   },
   {
     key: 'scene-prediction',

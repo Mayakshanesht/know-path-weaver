@@ -4,11 +4,10 @@ import { motion } from 'framer-motion';
 import { ArrowRight, BookOpen, Rocket, ShieldCheck, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import heroVideo from '@/assets/hero.mp4';
 import updatedLogo from '@/assets/KnowGraph Logo.png';
 import ArticlesSection from '@/components/landing/ArticlesSection';
 import BuiltByYou from '@/components/landing/BuiltByYou';
-import HeroShowcase from '@/components/landing/HeroShowcase';
+import HeroBackdrop from '@/components/landing/HeroBackdrop';
 
 export default function Index() {
   useEffect(() => {
@@ -25,32 +24,7 @@ export default function Index() {
   return (
     <>
     <section className="relative overflow-hidden bg-slate-950 text-slate-50 lg:min-h-screen">
-      {/*
-        The hero animation is a light, busy graph — text sat straight on top of it and was
-        close to unreadable. It needs to be a background, not a competitor: dimmed hard, then
-        covered by a scrim that is near-opaque on the left where the copy lives and clears
-        towards the right so the animation is still visible.
-      */}
-      <div className="absolute inset-0 overflow-hidden">
-        {/*
-          Was a 4.4MB GIF, above the fold, blocking first paint. The same eight seconds as
-          H.264 is 0.21MB — twenty times smaller — and it is dimmed to 35% behind a scrim
-          anyway, so it can take the compression. GIF is a terrible format for a video.
-        */}
-        <video
-          src={heroVideo}
-          autoPlay
-          loop
-          muted
-          playsInline
-          aria-hidden="true"
-          className="absolute inset-0 h-full w-full object-cover brightness-[0.35] saturate-50"
-        />
-        <div className="absolute inset-0 bg-slate-950/70" />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-slate-950/40" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-slate-950/60" />
-      </div>
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_20%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.16),_transparent_24%)]" />
+      <HeroBackdrop />
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-10 top-20 h-56 w-56 rounded-full bg-cyan-500/10 blur-3xl" />
         <div className="absolute right-16 top-10 h-44 w-44 rounded-full bg-violet-500/10 blur-3xl" />
@@ -58,8 +32,7 @@ export default function Index() {
       </div>
 
       <div className="container mx-auto px-4 py-12 lg:py-16 relative z-10">
-        <div className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
-          <div className="space-y-6">
+        <div className="max-w-3xl space-y-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -143,24 +116,6 @@ export default function Index() {
 
           </div>
 
-          {/*
-            The right half of the hero used to be the SAME abstract animation as the
-            background — decoration twice — while the actual proof that these courses are any
-            good sat two screens further down, where nobody scrolled to it. It is now real
-            course output, cycling, in the first viewport.
-          */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: 'easeOut' }}
-          >
-            <HeroShowcase />
-            <p className="mt-4 text-center text-sm text-slate-400">
-              Sense → Perceive → Predict → Plan → Control → Certify. Taught in that order,
-              because that is the order it has to work in.
-            </p>
-          </motion.div>
-        </div>
             <motion.div
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
