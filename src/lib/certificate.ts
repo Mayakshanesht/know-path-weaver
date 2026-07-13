@@ -60,17 +60,63 @@ export function createCertificateSvg({
 </svg>`;
 }
 
-export function downloadCertificate(data: CertificateData) {
-  const svg = createCertificateSvg(data);
-  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const fileName = `${data.courseTitle.replace(/[^a-zA-Z0-9_-]+/g, '_')}_certificate.svg`;
-
+function triggerDownload(url: string, fileName: string) {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = fileName;
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
+}
+
+/**
+ * Downloads the certificate as a PNG.
+ *
+ * It used to download raw SVG. That is a fine format for a browser and a poor one for
+ * a human: most people cannot open it, Word and PowerPoint will not place it, and
+ * LinkedIn will not accept it as a credential image. A certificate exists to be shown
+ * to someone else, so it has to be a format they can actually open.
+ *
+ * Rendered at 2x so it stays sharp when printed or posted.
+ */
+export async function downloadCertificate(data: CertificateData): Promise<void> {
+  const svg = createCertificateSvg(data);
+  const safeName = data.courseTitle.replace(/[^a-zA-Z0-9_-]+/g, '_');
+
+  const svgUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+
+  try {
+    const png = await new Promise<Blob>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => {
+        const scale = 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = 1200 * scale;
+        canvas.height = 850 * scale;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas is unavailable.'));
+
+        ctx.scale(scale, scale);
+        ctx.drawImage(image, 0, 0, 1200, 850);
+
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error('Could not encode the image.'))),
+          'image/png'
+        );
+      };
+      image.onerror = () => reject(new Error('Could not render the certificate.'));
+      image.src = svgUrl;
+    });
+
+    const pngUrl = URL.createObjectURL(png);
+    triggerDownload(pngUrl, `${safeName}_certificate.png`);
+    URL.revokeObjectURL(pngUrl);
+  } catch {
+    // Rasterising can fail (an old browser, a blocked canvas). A downloadable SVG
+    // beats no certificate at all.
+    triggerDownload(svgUrl, `${safeName}_certificate.svg`);
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
 }
