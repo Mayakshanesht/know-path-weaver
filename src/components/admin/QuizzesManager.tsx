@@ -31,6 +31,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toFormState, toStored, hasEnoughOptions } from '@/lib/quizFormat';
 import {
   Plus,
   Edit,
@@ -252,6 +253,7 @@ export default function QuizzesManager() {
       correct_answer: 0,
       explanation: '',
       points: 1,
+      key: Math.random(),
     });
     setQuestionDialogOpen(true);
   };
@@ -259,17 +261,24 @@ export default function QuizzesManager() {
   const handleEditQuestion = (question: QuizQuestion) => {
     setSelectedQuizId(question.quiz_id);
     setEditingQuestion(question);
-    
-    const options = question.options as { options?: string[] } | null;
-    const correctAnswer = question.correct_answer as { correct_index?: number } | null;
-    
+
+    // The editor works in positions; the grader reads a key->label object and a key string.
+    // src/lib/quizFormat.ts owns that translation, and is tested, because getting it wrong
+    // silently produces a question the learner can never answer correctly.
+    const form = toFormState(
+      question.question_type,
+      question.options,
+      question.correct_answer
+    );
+
     setQuestionFormData({
       question_type: question.question_type,
       question_text: question.question_text,
-      options: options?.options || ['', '', '', ''],
-      correct_answer: correctAnswer?.correct_index || 0,
+      options: form.options,
+      correct_answer: form.correct_answer,
       explanation: question.explanation || '',
       points: question.points || 1,
+      key: Math.random(),
     });
     setQuestionDialogOpen(true);
   };
@@ -284,18 +293,24 @@ export default function QuizzesManager() {
       return;
     }
 
+    if (!hasEnoughOptions(questionFormData.question_type, questionFormData)) {
+      toast({
+        title: 'Not enough options',
+        description: 'A multiple-choice question needs at least two options to choose between.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Writes the key->label object and the plain-string key the learner's grader reads.
+    const { options, correct_answer } = toStored(questionFormData.question_type, questionFormData);
+
     const questionData = {
       quiz_id: selectedQuizId,
       question_type: questionFormData.question_type,
       question_text: questionFormData.question_text,
-      options: questionFormData.question_type === 'mcq' || questionFormData.question_type === 'multiple_select'
-        ? { options: questionFormData.options.filter(o => o.trim()) }
-        : null,
-      correct_answer: questionFormData.question_type === 'mcq'
-        ? { correct_index: questionFormData.correct_answer }
-        : questionFormData.question_type === 'true_false'
-        ? { answer: questionFormData.correct_answer === 0 }
-        : { answer: questionFormData.options[0] },
+      options,
+      correct_answer,
       explanation: questionFormData.explanation || null,
       points: questionFormData.points,
     };

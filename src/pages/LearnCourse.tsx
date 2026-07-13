@@ -858,6 +858,23 @@ export default function LearnCourse() {
                       {currentCapsule.description}
                     </p>
                   )}
+
+                  {/*
+                    Shown only on a module's first lesson. Arriving at a new module used to
+                    feel like being dropped into the middle of something: the learner saw a
+                    lesson title and nothing about what the module as a whole was for, or
+                    why it followed the last one. This is the orientation that was missing.
+                  */}
+                  {lessonPosition?.index === 1 && currentPath?.description && (
+                    <div className="mt-5 rounded-lg border-l-4 border-primary/60 bg-muted/50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                        About this module
+                      </p>
+                      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                        {currentPath.description}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
