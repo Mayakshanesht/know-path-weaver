@@ -23,16 +23,24 @@ export default function Index() {
   return (
     <>
     <section className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-50">
+      {/*
+        The hero animation is a light, busy graph — text sat straight on top of it and was
+        close to unreadable. It needs to be a background, not a competitor: dimmed hard, then
+        covered by a scrim that is near-opaque on the left where the copy lives and clears
+        towards the right so the animation is still visible.
+      */}
       <div className="absolute inset-0 overflow-hidden">
         <img
           src={heroGif}
-          alt="KnowGraph hero background"
-          className="absolute inset-0 h-full w-full object-cover brightness-75"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full object-cover brightness-[0.35] saturate-50"
         />
-        <div className="absolute inset-0 bg-slate-950/45" />
+        <div className="absolute inset-0 bg-slate-950/70" />
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-slate-950/40" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-slate-950/60" />
       </div>
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.24),_transparent_18%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.2),_transparent_22%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-slate-950/90 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_20%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.16),_transparent_24%)]" />
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-10 top-20 h-56 w-56 rounded-full bg-cyan-500/10 blur-3xl" />
         <div className="absolute right-16 top-10 h-44 w-44 rounded-full bg-violet-500/10 blur-3xl" />
@@ -46,7 +54,7 @@ export default function Index() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-200 shadow-xl shadow-cyan-500/10"
+              className="inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-slate-950/80 px-4 py-2 text-sm font-medium text-cyan-200 shadow-xl shadow-cyan-500/20 backdrop-blur-md"
             >
               <Rocket className="w-4 h-4" />
               KnowGraph v1 is live — all five courses are open for enrolment.
@@ -66,25 +74,31 @@ export default function Index() {
               */}
               <div className="flex flex-wrap items-center gap-4">
                 <img src={updatedLogo} alt="KnowGraph" className="h-16 w-auto rounded-2xl border border-white/10 bg-white/5 p-2 shadow-lg shadow-cyan-500/10" />
-                <span className="rounded-full bg-cyan-400/15 px-4 py-2 text-xs uppercase tracking-[0.24em] text-cyan-200 shadow-sm shadow-cyan-500/10">
+                <span className="rounded-full border border-cyan-400/40 bg-cyan-400/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100 shadow-sm shadow-cyan-500/20 backdrop-blur-md">
                   Now enrolling
                 </span>
               </div>
 
-              <h1 className="text-5xl sm:text-6xl font-bold leading-tight tracking-tight max-w-3xl">
+              <h1
+                className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.05] tracking-tight max-w-3xl text-white"
+                style={{ textShadow: '0 2px 24px rgba(2,6,23,0.9)' }}
+              >
                 Robotics, taught as{' '}
-                <span className="bg-gradient-to-r from-cyan-300 to-sky-400 bg-clip-text text-transparent">
-                  one pipeline
-                </span>
-                .
+                <span className="text-cyan-300">one pipeline</span>.
               </h1>
-              <p className="max-w-2xl text-lg leading-8 text-slate-300">
+              <p
+                className="max-w-2xl text-lg sm:text-xl font-medium leading-8 text-slate-100"
+                style={{ textShadow: '0 1px 12px rgba(2,6,23,0.85)' }}
+              >
                 Most courses teach you one box on the diagram. You learn perception, and nobody
                 tells you what the planner needed from it. KnowGraph teaches the whole stack in
                 order — perception, prediction, planning, control and the safety case — where
                 every module says what it builds on and what breaks without it.
               </p>
-              <p className="max-w-2xl text-base leading-7 text-slate-400">
+              <p
+                className="max-w-2xl text-base leading-7 text-slate-300"
+                style={{ textShadow: '0 1px 10px rgba(2,6,23,0.85)' }}
+              >
                 Real Colab notebooks and real datasets — KITTI, MetaDrive, GTSRB. You write the
                 code. Browse every module and lesson before you pay anything.
               </p>
@@ -132,12 +146,15 @@ export default function Index() {
                 { icon: <Zap className="w-5 h-5 text-violet-300" />, value: '118 hours', label: 'Lectures, notebooks and projects' },
                 { icon: <ShieldCheck className="w-5 h-5 text-sky-300" />, value: '96 quizzes', label: 'Testing understanding, not recall' },
               ].map((stat) => (
-                <div key={stat.label} className="rounded-3xl border border-white/10 bg-white/5 px-5 py-6 text-center backdrop-blur-sm shadow-2xl shadow-slate-950/10">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900/80 text-cyan-200 shadow-inner">
+                <div
+                  key={stat.label}
+                  className="rounded-3xl border border-white/15 bg-slate-950/85 px-5 py-6 text-center shadow-2xl shadow-slate-950/40 backdrop-blur-md"
+                >
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-cyan-300 shadow-inner">
                     {stat.icon}
                   </div>
-                  <div className="mt-4 text-2xl font-semibold text-cyan-300">{stat.value}</div>
-                  <div className="mt-2 text-sm text-slate-400">{stat.label}</div>
+                  <div className="mt-4 text-2xl font-bold text-cyan-300">{stat.value}</div>
+                  <div className="mt-2 text-sm text-slate-300">{stat.label}</div>
                 </div>
               ))}
             </motion.div>
