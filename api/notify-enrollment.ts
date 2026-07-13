@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
+import { checkReceipt } from './verify-receipt.js';
 
 /**
  * Emails the admin the moment a student applies for a course.
@@ -82,21 +83,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const site = process.env.VITE_PUBLIC_SITE_URL ?? 'https://know-path-weaver.vercel.app';
 
+  /*
+    Read the receipt now, and grant ACCESS if it holds up — so a genuine buyer starts
+    learning immediately rather than waiting for someone to wake up and click Approve.
+
+    It never confirms the PAYMENT. That still needs a human looking at the bank statement,
+    and it is what issues the invoice. Access is optimistic; revenue is not.
+  */
+  let autoGranted = false;
+  let check: Awaited<ReturnType<typeof checkReceipt>> | null = null;
+
+  if (record.payment_receipt_url) {
+    try {
+      check = await checkReceipt(enrollmentId);
+      if (check.grants_access) {
+        const { error: grantError } = await db
+          .from('enrollments')
+          .update({
+            status: 'approved',
+            approved_at: new Date().toISOString(),
+            auto_approved: true,
+            payment_confirmed: false, // still needs the bank statement
+          })
+          .eq('id', enrollmentId);
+        autoGranted = !grantError;
+      }
+    } catch (error) {
+      // A failed read must never block the enrolment or the email. It just means the admin
+      // does what they did before: looks at the receipt themselves.
+      console.error('notify-enrollment: receipt check failed', error);
+    }
+  }
+
   const rows: Array<[string, unknown]> = [
     ['Student', `${studentName} (${studentEmail})`],
     ['Course', course?.title ?? record.course_id],
-    ['Price', price],
-    ['Billing region', record.billing_region ?? '—'],
-    ['Payment reference', record.payment_reference ?? '(none provided)'],
+    ['Amount they owe', price],
+    ['Their payment code', record.payment_code ?? '(none)'],
+    ['UTR they entered', record.payment_reference ?? '(none provided)'],
     ['Receipt', record.payment_receipt_url ? `<a href="${esc(record.payment_receipt_url)}">View receipt</a>` : '(none uploaded)'],
   ];
 
+  if (check) {
+    rows.push(['Amount on the receipt', check.extracted.amount ?? 'could not read']);
+    rows.push(['Transaction on the receipt', check.extracted.transaction_id ?? 'could not read']);
+    rows.push(['Receipt checks passed', `${check.passed} of ${check.total}`]);
+  }
+
+  const headline = autoGranted
+    ? 'Access granted automatically — now check the money arrived'
+    : check
+      ? 'The receipt did not hold up — this one needs you'
+      : 'New enrolment — action needed';
+
+  const subhead = autoGranted
+    ? `The receipt matched the ${price} expected, so ${studentName} can already open the course. ` +
+      'The payment is NOT confirmed and no invoice has been issued. Check your bank statement: ' +
+      'confirm it to issue the invoice, or revoke the access if the money never arrived.'
+    : check
+      ? 'The uploaded receipt did not match what they claimed, so nothing has been granted. ' +
+        'Look at it yourself before approving.'
+      : 'They cannot open the course until you approve them.';
+
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px">
-      <h2 style="margin:0 0 4px">New enrolment — action needed</h2>
-      <p style="margin:0 0 20px;color:#475569">
-        They cannot open the course until you approve them.
-      </p>
+      <h2 style="margin:0 0 4px">${esc(headline)}</h2>
+      <p style="margin:0 0 20px;color:#475569">${esc(subhead)}</p>
       <table cellpadding="8" style="border-collapse:collapse;width:100%;font-size:14px">
         ${rows
           .map(
@@ -111,12 +163,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       <p style="margin:24px 0">
         <a href="${site}/admin"
            style="background:#0f172a;color:#fff;padding:11px 18px;border-radius:8px;text-decoration:none;display:inline-block">
-          Verify the payment and approve
+          ${autoGranted ? 'Confirm the payment (or revoke)' : 'Review and approve'}
         </a>
       </p>
       <p style="color:#94a3b8;font-size:12px;margin:0">
-        Check the payment reference against your bank before approving. Approving issues the
-        invoice and unlocks the course immediately.
+        A screenshot can be faked. The invoice is only issued once you confirm the payment
+        against your bank statement — never on the strength of the receipt alone.
       </p>
     </div>`;
 
@@ -132,11 +184,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       from: `KnowGraph <${smtpUser}>`,
       to: adminEmail,
       replyTo: studentEmail !== 'unknown' ? studentEmail : undefined,
-      subject: `New enrolment: ${studentName} — ${course?.title ?? 'a course'} (${price})`,
+      subject: autoGranted
+        ? `Access granted (unconfirmed): ${studentName} — ${course?.title ?? 'a course'} (${price})`
+        : `New enrolment needs you: ${studentName} — ${course?.title ?? 'a course'} (${price})`,
       html,
     });
 
-    return res.status(200).json({ ok: true, notified: adminEmail });
+    return res.status(200).json({
+      ok: true,
+      notified: adminEmail,
+      auto_granted: autoGranted,
+      checks_passed: check ? `${check.passed}/${check.total}` : null,
+    });
   } catch (error) {
     // The enrolment itself is already safely recorded; only the email failed. Say so loudly
     // in the logs, but never fail in a way that could make the trigger look like the problem.

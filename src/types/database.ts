@@ -100,6 +100,30 @@ export interface Enrollment {
   admin_notes: string | null;
   enrolled_at: string;
   approved_at: string | null;
+
+  billing_country: string | null;
+  billing_region: 'india' | 'international' | null;
+  billing_state: string | null;
+
+  /** The code the buyer was asked to put in the payment note. Per buyer, per course. */
+  payment_code: string | null;
+  /** The price agreed at the point of sale, so a later price change cannot re-price them. */
+  amount_paid: number | null;
+  currency: string | null;
+
+  /**
+   * ACCESS and MONEY are deliberately separate.
+   *
+   * status='approved' means the learner can open the course. payment_confirmed means an
+   * admin has seen the money on the bank statement — and ONLY that issues the invoice.
+   *
+   * The receipt OCR can grant access, because a wrongly-granted course costs a course. It
+   * must never issue a GST invoice, because a tax document for a payment that never arrived
+   * is not something you can quietly take back.
+   */
+  payment_confirmed: boolean;
+  auto_approved: boolean;
+  receipt_check: unknown | null;
 }
 
 export interface Progress {

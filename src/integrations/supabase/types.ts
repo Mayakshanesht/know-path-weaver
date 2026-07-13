@@ -197,6 +197,14 @@ export type Database = {
       }
       enrollments: {
         Row: {
+          amount_paid: number | null
+          auto_approved: boolean
+          billing_state: string | null
+          currency: string | null
+          payment_code: string | null
+          payment_confirmed: boolean
+          payment_confirmed_at: string | null
+          receipt_check: Json | null
           admin_notes: string | null
           approved_at: string | null
           billing_country: string | null
@@ -210,6 +218,14 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          amount_paid?: number | null
+          auto_approved?: boolean
+          billing_state?: string | null
+          currency?: string | null
+          payment_code?: string | null
+          payment_confirmed?: boolean
+          payment_confirmed_at?: string | null
+          receipt_check?: Json | null
           admin_notes?: string | null
           approved_at?: string | null
           billing_country?: string | null
@@ -223,6 +239,14 @@ export type Database = {
           user_id: string
         }
         Update: {
+          amount_paid?: number | null
+          auto_approved?: boolean
+          billing_state?: string | null
+          currency?: string | null
+          payment_code?: string | null
+          payment_confirmed?: boolean
+          payment_confirmed_at?: string | null
+          receipt_check?: Json | null
           admin_notes?: string | null
           approved_at?: string | null
           billing_country?: string | null
