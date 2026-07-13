@@ -28,6 +28,15 @@ export interface MarketingClip {
   caption: string;
   /** Substring matched against the course title, so a clip can head its own course page. */
   courseMatch?: string;
+  /**
+   * May this clip be used as the hero BACKGROUND?
+   *
+   * Only the real camera footage can. The plotted animations are matplotlib figures on white
+   * backgrounds — behind dark copy they either blow out to a glaring white rectangle or, once
+   * dimmed enough to read over, turn into grey mush. They belong on a card, at full
+   * brightness, where they look like what they are.
+   */
+  heroBackdrop?: boolean;
 }
 
 /**
@@ -45,6 +54,7 @@ const CATALOGUE: Array<Omit<MarketingClip, 'url' | 'isVideo'>> = [
   // --- real footage: this is what makes someone stop scrolling ---
   {
     key: 'perception',
+    heroBackdrop: true,
     title: 'Instance segmentation on real KITTI frames',
     caption:
       'Not "these pixels are car" but "this is car #1 and that is car #2" — which is what a planner needs in order to know how many things it has to avoid.',
@@ -52,6 +62,7 @@ const CATALOGUE: Array<Omit<MarketingClip, 'url' | 'isVideo'>> = [
   },
   {
     key: 'optical-flow',
+    heroBackdrop: true,
     title: 'Optical flow — motion, straight from the pixels',
     caption:
       'RAFT on a KITTI sequence. Every pixel gets a motion vector, which is how a single camera can tell you something is moving, and roughly how fast.',
@@ -93,6 +104,9 @@ export const MARKETING_CLIPS: MarketingClip[] = CATALOGUE.flatMap((entry) => {
   if (!url) return [];
   return [{ ...entry, url, isVideo: /\.(mp4|webm)$/i.test(url) }];
 });
+
+/** The clips that work as a full-bleed dark background: real footage only. */
+export const HERO_CLIPS: MarketingClip[] = MARKETING_CLIPS.filter((c) => c.heroBackdrop);
 
 /** The clip that belongs to a course, if there is one. */
 export function clipForCourse(courseTitle: string | undefined): MarketingClip | undefined {

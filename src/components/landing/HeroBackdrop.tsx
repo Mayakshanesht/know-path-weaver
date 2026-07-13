@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { MARKETING_CLIPS } from '@/lib/marketingMedia';
+import { HERO_CLIPS } from '@/lib/marketingMedia';
 import heroVideo from '@/assets/hero.mp4';
 
 /**
@@ -8,18 +8,25 @@ import heroVideo from '@/assets/hero.mp4';
  *
  * It used to be an abstract graph animation — decoration that said nothing about whether the
  * courses were any good — and the actual proof sat two screens below the fold. Now the first
- * thing anyone sees is a planner choosing a trajectory, or an AEB model calling BRAKE.
+ * thing anyone sees is segmentation and optical flow running on real KITTI frames.
  *
- * Dimmed hard and covered by a scrim, because it is a BACKGROUND: the headline has to win.
- * A small label says what is playing, so it reads as evidence rather than as wallpaper —
- * without it, a viewer has no idea they are looking at something a learner built.
+ * Only the camera footage is used here (HERO_CLIPS). The plotted animations are matplotlib
+ * figures on WHITE backgrounds: behind dark copy they either blow out into a glaring white
+ * rectangle, or, dimmed enough to read over, turn into grey mush. They belong on a card at
+ * full brightness in the section below, where they look like what they are.
+ *
+ * The first attempt buried the video under four darkening layers and it could not be seen at
+ * all. The scrim is now heavy only where the text actually sits — the left — and clears
+ * completely on the right, so the footage is genuinely visible.
+ *
+ * A small label says what is playing. Without it this is wallpaper; with it, it is evidence.
  *
  * Falls back to the abstract animation if no clips are present.
  */
 const ROTATE_MS = 6000;
 
 export default function HeroBackdrop() {
-  const clips = MARKETING_CLIPS;
+  const clips = HERO_CLIPS;
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -47,7 +54,7 @@ export default function HeroBackdrop() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 1.1, ease: 'easeOut' }}
-              className="absolute inset-0 h-full w-full object-cover brightness-[0.4] saturate-[0.85]"
+              className="absolute inset-0 h-full w-full object-cover brightness-90"
             />
           </AnimatePresence>
         ) : (
@@ -62,10 +69,14 @@ export default function HeroBackdrop() {
           />
         )}
 
-        {/* The copy has to win. Near-opaque on the left, clearing to the right. */}
-        <div className="absolute inset-0 bg-slate-950/60" />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-slate-950/30" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-slate-950/70" />
+        {/*
+          The copy has to win, but the footage has to be VISIBLE — it was under four
+          darkening layers and could not be seen at all. So the scrim is heavy only where the
+          text actually sits (the left), and clears completely on the right where the video
+          plays. Two layers, not four.
+        */}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 via-45% to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-slate-950/30" />
       </div>
 
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.16),_transparent_22%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.14),_transparent_26%)]" />

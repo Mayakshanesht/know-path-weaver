@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, BookOpen, Rocket, ShieldCheck, Zap } from 'lucide-react';
+import { ArrowRight, BookOpen, Check, Rocket, ShieldCheck, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import updatedLogo from '@/assets/KnowGraph Logo.png';
@@ -23,7 +23,7 @@ export default function Index() {
 
   return (
     <>
-    <section className="relative overflow-hidden bg-slate-950 text-slate-50 lg:min-h-screen">
+    <section className="relative overflow-hidden bg-slate-950 text-slate-50">
       <HeroBackdrop />
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-10 top-20 h-56 w-56 rounded-full bg-cyan-500/10 blur-3xl" />
@@ -31,7 +31,7 @@ export default function Index() {
         <div className="absolute left-1/2 top-1/3 h-72 w-72 -translate-x-1/2 rounded-full bg-fuchsia-500/10 blur-3xl" />
       </div>
 
-      <div className="container mx-auto px-4 py-12 lg:py-16 relative z-10">
+      <div className="container mx-auto px-4 py-16 lg:py-24 relative z-10">
         <div className="max-w-3xl space-y-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -69,15 +69,46 @@ export default function Index() {
                 Robotics, taught as{' '}
                 <span className="text-cyan-300">one pipeline</span>.
               </h1>
+              {/*
+                The old copy explained the philosophy and never said what a student would be
+                ABLE TO DO. Nobody buys a philosophy. Lead with the frustration they already
+                have, then show them the specific things they will have built.
+              */}
               <p
                 className="max-w-2xl text-lg sm:text-xl font-medium leading-8 text-slate-100"
                 style={{ textShadow: '0 1px 12px rgba(2,6,23,0.85)' }}
               >
-                Most courses teach you one box on the diagram. You learn perception, and nobody
-                tells you what the planner needed from it. KnowGraph teaches the whole stack in
-                order — perception, prediction, planning, control and the safety case — where
-                every module says what it builds on and what breaks without it.
+                You can finish five courses on perception, control and planning and still not be
+                able to say <span className="text-white">how a car decides to brake.</span> Because
+                nobody ever told you what the planner needed from perception, or where the
+                trajectory the controller tracks came from.
               </p>
+              <p
+                className="max-w-2xl text-lg leading-8 text-slate-200"
+                style={{ textShadow: '0 1px 12px rgba(2,6,23,0.85)' }}
+              >
+                KnowGraph teaches the whole stack <strong className="text-white">in the order it
+                actually runs</strong> — and every module tells you what it builds on and what
+                breaks without it.
+              </p>
+
+              <ul className="max-w-2xl space-y-2.5">
+                {[
+                  'Train the AEB classifier — and choose the threshold that decides between a rear-ending and a collision.',
+                  'Write the PID that holds a gap. Then build the MPC that replaces it, and understand exactly why it is better.',
+                  'Take AEB, ACC and LKA through MIL, SIL and co-simulation in IPG CarMaker — the workflow the industry actually uses.',
+                ].map((item) => (
+                  <li
+                    key={item}
+                    className="flex items-start gap-3 text-base leading-7 text-slate-200"
+                    style={{ textShadow: '0 1px 10px rgba(2,6,23,0.85)' }}
+                  >
+                    <Check className="mt-1 h-5 w-5 shrink-0 text-cyan-300" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+
               <p
                 className="max-w-2xl text-base leading-7 text-slate-300"
                 style={{ textShadow: '0 1px 10px rgba(2,6,23,0.85)' }}
