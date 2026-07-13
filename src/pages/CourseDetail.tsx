@@ -294,7 +294,8 @@ export default function CourseDetail() {
                 </div>
                 <div className="flex items-center gap-2 px-4 py-2 bg-secondary rounded-lg">
                   <Clock className="w-5 h-5 text-primary" />
-                  <span>{Math.round(totalDuration / 60)}h {totalDuration % 60}m</span>
+                  {/* floor, not round: 2012 minutes is 33h 32m, and Math.round showed it as 34h 32m. */}
+                  <span>{Math.floor(totalDuration / 60)}h {totalDuration % 60}m</span>
                 </div>
                 <div className="flex items-center gap-2 px-4 py-2 bg-secondary rounded-lg">
                   <Play className="w-5 h-5 text-primary" />

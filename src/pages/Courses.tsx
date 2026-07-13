@@ -17,6 +17,8 @@ import CourseCover from '@/components/courses/CourseCover';
 interface CourseWithCounts extends Course {
   modules_count: number;
   capsules_count: number;
+  /** Total teaching time, in whole hours. */
+  hours_count: number;
 }
 
 export default function Courses() {
@@ -45,6 +47,13 @@ export default function Courses() {
         capsules_count: (c.learning_paths || []).reduce(
           (acc: number, p: any) => acc + (p.capsules || []).length,
           0
+        ),
+        hours_count: Math.floor(
+          (c.learning_paths || []).reduce(
+            (acc: number, p: any) =>
+              acc + (p.capsules || []).reduce((s: number, cap: any) => s + (cap.duration_minutes || 0), 0),
+            0
+          ) / 60
         ),
       }));
       setCourses(enriched);
@@ -169,6 +178,11 @@ export default function Courses() {
                           <span className="rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-slate-100 backdrop-blur-sm">
                             {course.capsules_count} lessons
                           </span>
+                          {course.hours_count > 0 && (
+                            <span className="rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-slate-100 backdrop-blur-sm">
+                              {course.hours_count}h
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -178,7 +192,7 @@ export default function Courses() {
                       </CardHeader>
 
                       <CardContent className="space-y-4 pt-0">
-                        <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="grid gap-3 sm:grid-cols-3">
                           <div className="rounded-3xl bg-slate-950/85 p-4 text-sm text-slate-300 ring-1 ring-white/5">
                             <div className="font-medium text-slate-100">Modules</div>
                             <div className="mt-2 text-lg font-semibold">{course.modules_count}</div>
@@ -186,6 +200,12 @@ export default function Courses() {
                           <div className="rounded-3xl bg-slate-950/85 p-4 text-sm text-slate-300 ring-1 ring-white/5">
                             <div className="font-medium text-slate-100">Lessons</div>
                             <div className="mt-2 text-lg font-semibold">{course.capsules_count}</div>
+                          </div>
+                          <div className="rounded-3xl bg-slate-950/85 p-4 text-sm text-slate-300 ring-1 ring-white/5">
+                            <div className="font-medium text-slate-100">Hours</div>
+                            <div className="mt-2 text-lg font-semibold">
+                              {course.hours_count > 0 ? `${course.hours_count}h` : '—'}
+                            </div>
                           </div>
                         </div>
                         <div className="rounded-3xl bg-slate-950/85 p-4 text-sm text-slate-300 ring-1 ring-white/5">
