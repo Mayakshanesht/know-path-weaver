@@ -159,17 +159,31 @@ export default function CourseDetail() {
         receiptUrl = urlData.publicUrl;
       }
 
-      // Create enrollment. billing_country/_region are recorded now, at the point of
-      // sale, because that is the only moment they are actually knowable.
-      const { error: enrollError } = await supabase.from('enrollments').insert({
+      // billing_country/_region are recorded at the point of sale, the only moment
+      // the buyer's location is actually knowable.
+      const base = {
         user_id: authUser.id,
         course_id: course.id,
         payment_reference: paymentReference || null,
         payment_receipt_url: receiptUrl,
-        status: 'pending',
+        status: 'pending' as const,
+      };
+
+      let { error: enrollError } = await supabase.from('enrollments').insert({
+        ...base,
         billing_country: billingCountry,
         billing_region: regionForCountry(billingCountry),
       });
+
+      // PGRST204 = the column is not in the schema cache, i.e. the invoicing
+      // migration has not been applied to this database yet. An enrollment is a
+      // sale; it must never fail because a nice-to-have column is missing. Retry
+      // without the billing fields, and start capturing them automatically once
+      // the migration lands.
+      if (enrollError && (enrollError as { code?: string }).code === 'PGRST204') {
+        console.warn('enrollments.billing_country missing; enrolling without it.');
+        ({ error: enrollError } = await supabase.from('enrollments').insert(base));
+      }
 
       if (enrollError) {
         throw enrollError;
