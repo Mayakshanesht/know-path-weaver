@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BookOpen, ArrowRight, IndianRupee, Euro, Info, CreditCard, QrCode, Mail, Phone } from 'lucide-react';
-import paymentQR from '@/assets/payment_qr_code.jpeg?url';
+import paymentQR from '@/assets/payment_qr_code_cropped.jpeg?url';
 import aiThumb from '@/assets/thumbnails/ai-bootcamp.svg?url';
 import mlThumb from '@/assets/thumbnails/ml-fundamentals.svg?url';
 import roboticsThumb from '@/assets/thumbnails/robotics-projects.svg?url';
@@ -295,10 +295,12 @@ export default function Courses() {
                     PhonePay QR Code
                   </h3>
                   <div className="bg-card p-6 rounded-lg border text-center">
-                    <img 
-                      src={paymentQR} 
-                      alt="Payment QR Code" 
-                      className="w-64 h-64 mx-auto mb-4 border rounded-lg"
+                    <img
+                      src={paymentQR}
+                      alt="PhonePe QR code to pay KnowGraph"
+                      // Natural aspect ratio: w-64 h-64 squashed this portrait image
+                      // into a square and shrank the QR to an unscannable size.
+                      className="w-full max-w-[360px] h-auto mx-auto mb-4 border rounded-lg bg-white"
                       onError={(e) => {
                         console.error('QR image failed to load', e);
                         const target = e.target as HTMLImageElement;

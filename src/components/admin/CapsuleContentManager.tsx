@@ -34,28 +34,10 @@ import {
   Image,
   FileType,
   ExternalLink,
-  GripVertical,
   Upload,
 } from 'lucide-react';
-import { ChevronUp, ChevronDown } from 'lucide-react';
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  KeyboardSensor,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  arrayMove,
-  verticalListSortingStrategy,
-  useSortable,
-  sortableKeyboardCoordinates,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import reorderArray from '@/lib/reorder';
+import { SortableList, DragHandle, DragHandleProps } from '@/components/admin/SortableList';
+import { persistOrder } from '@/lib/reorder';
 import { TiptapEditor } from '@/components/ui/tiptap-editor';
 
 const CONTENT_TYPE_CONFIG: Record<ContentType, { label: string; icon: React.ComponentType<{ className?: string }>; placeholder: string; description: string }> = {
@@ -128,6 +110,8 @@ export default function CapsuleContentManager({
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingContent, setEditingContent] = useState<CapsuleContent | null>(null);
+  // Non-null only between a drop and the parent's refetch landing.
+  const [orderedContent, setOrderedContent] = useState<CapsuleContent[] | null>(null);
   const [formData, setFormData] = useState({
     content_type: 'google_drive' as ContentType,
     title: '',
@@ -172,7 +156,7 @@ export default function CapsuleContentManager({
   }, []);
 
   useEffect(() => {
-    // If content list arrives after mount, resolve editingContent from stored id.
+    // If the content list arrives after mount, resolve editingContent from the stored id.
     const raw = sessionStorage.getItem(draftKey);
     if (!raw) return;
     try {
@@ -183,7 +167,7 @@ export default function CapsuleContentManager({
         return content.find((c) => c.id === parsed.editingContentId) ?? null;
       });
     } catch {
-      // ignore
+      sessionStorage.removeItem(draftKey);
     }
   }, [content, draftKey]);
 
@@ -196,6 +180,11 @@ export default function CapsuleContentManager({
     };
     sessionStorage.setItem(draftKey, JSON.stringify(payload));
   }, [adding, draftKey, editingContent?.id, formData, open]);
+
+  // A fresh list from the server supersedes any optimistic ordering.
+  useEffect(() => {
+    setOrderedContent(null);
+  }, [content]);
 
   const resetForm = () => {
     setFormData({
@@ -279,25 +268,24 @@ export default function CapsuleContentManager({
     }
   };
 
-  const handleReorderContent = async (dragIndex: number, dropIndex: number) => {
-    if (dragIndex === dropIndex) return;
-    const reorderedContent = reorderArray(content, dragIndex, dropIndex);
+  const handleReorderContent = async (orderedIds: string[]) => {
+    const byId = new Map(content.map((c) => [c.id, c]));
+    const reordered = orderedIds.map((id) => byId.get(id)).filter(Boolean) as CapsuleContent[];
 
-    // Update order_index for all items in a single RPC-like loop
+    // Show the new order immediately; the refetch below confirms it.
+    setOrderedContent(reordered);
+
     try {
-      for (let i = 0; i < reorderedContent.length; i++) {
-        const { error } = await supabase
-          .from('capsule_content')
-          .update({ order_index: i })
-          .eq('id', reorderedContent[i].id);
-
-        if (error) throw error;
-      }
-
+      await persistOrder('capsule_content', orderedIds);
       toast({ title: 'Content reordered' });
       onRefresh();
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      setOrderedContent(null); // roll back to the server's order
+      toast({
+        title: 'Could not save new order',
+        description: error.message,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -390,6 +378,9 @@ export default function CapsuleContentManager({
 
   const config = CONTENT_TYPE_CONFIG[formData.content_type];
 
+  // Drop the optimistic order as soon as the refreshed server list reflects it.
+  const items = orderedContent ?? content;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -403,44 +394,32 @@ export default function CapsuleContentManager({
         <div className="space-y-4 py-4">
           {/* Existing Content */}
           <div className="space-y-2">
-            <Label>Content Items ({content.length})</Label>
-              <div className="space-y-2">
-                {content.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No content added yet.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {(() => {
-                      const sensors = useSensors(
-                        useSensor(PointerSensor),
-                        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-                      );
-
-                      return (
-                        <DndContext
-                          sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={(e: DragEndEvent) => {
-                        const from = Number(e.active.id);
-                        const to = Number(e.over?.id ?? from);
-                        if (!Number.isNaN(from) && !Number.isNaN(to)) {
-                          handleReorderContent(from, to);
-                        }
-                      }}
-                    >
-                      <SortableContext items={content.map((c, i) => String(i))} strategy={verticalListSortingStrategy}>
-                        {content.map((item, index) => {
-                      const typeConfig = CONTENT_TYPE_CONFIG[item.content_type];
-                      const Icon = typeConfig.icon;
-                          // SortableItem wrapper will render each item
-                          return <SortableItem key={item.id} id={String(index)} index={index} item={item} openEdit={openEdit} handleDeleteContent={handleDeleteContent} typeConfig={typeConfig} />;
-                        })}
-                      </SortableContext>
-                        </DndContext>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
+            <Label>Content Items ({items.length})</Label>
+            {items.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No content added yet.</p>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Drag the grip to reorder. Learners see content in this order.
+                </p>
+                <SortableList
+                  items={items}
+                  getId={(item) => item.id}
+                  onReorder={handleReorderContent}
+                  className="space-y-2"
+                >
+                  {(item, index, handleProps) => (
+                    <ContentRow
+                      item={item}
+                      index={index}
+                      handleProps={handleProps}
+                      openEdit={openEdit}
+                      onDelete={handleDeleteContent}
+                    />
+                  )}
+                </SortableList>
+              </>
+            )}
           </div>
 
           {/* Add/Edit Form */}
@@ -613,33 +592,46 @@ export default function CapsuleContentManager({
   );
 }
 
-  function SortableItem({ id, index, item, openEdit, handleDeleteContent, typeConfig }: any) {
-    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    };
-    const Icon = typeConfig.icon;
+function ContentRow({
+  item,
+  index,
+  handleProps,
+  openEdit,
+  onDelete,
+}: {
+  item: CapsuleContent;
+  index: number;
+  handleProps: DragHandleProps;
+  openEdit: (item: CapsuleContent) => void;
+  onDelete: (id: string) => void;
+}) {
+  const typeConfig = CONTENT_TYPE_CONFIG[item.content_type];
+  const Icon = typeConfig.icon;
 
-    return (
-      <div ref={setNodeRef} style={style} className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg group">
-        <div {...attributes} {...listeners} className="cursor-move flex-shrink-0">
-          <GripVertical className="w-4 h-4 text-muted-foreground" />
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-secondary/50 p-3">
+      <DragHandle handleProps={handleProps} label={`Reorder ${item.title || 'content item'}`} />
+      <span className="w-5 flex-shrink-0 text-xs tabular-nums text-muted-foreground">
+        {index + 1}
+      </span>
+      <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs">
+            {typeConfig.label}
+          </Badge>
+          <span className="truncate text-sm font-medium">{item.title || item.content_value}</span>
         </div>
-        <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs">{typeConfig.label}</Badge>
-            <span className="text-sm font-medium truncate">{item.title || item.content_value}</span>
-          </div>
-          {item.description && <p className="text-xs text-muted-foreground truncate">{item.description}</p>}
-        </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
-          <Edit className="w-4 h-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteContent(item.id)}>
-          <Trash2 className="w-4 h-4 text-destructive" />
-        </Button>
+        {item.description && (
+          <p className="truncate text-xs text-muted-foreground">{item.description}</p>
+        )}
       </div>
-    );
-  }
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
+        <Edit className="h-4 w-4" />
+      </Button>
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onDelete(item.id)}>
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </Button>
+    </div>
+  );
+}

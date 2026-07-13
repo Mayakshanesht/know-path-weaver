@@ -33,7 +33,7 @@ import {
   Phone,
   Info,
 } from 'lucide-react';
-import paymentQR from '@/assets/payment_qr_code.jpeg?url';
+import paymentQR from '@/assets/payment_qr_code_cropped.jpeg?url';
 
 interface LearningPathWithCapsules extends LearningPath {
   capsules: Capsule[];
@@ -473,8 +473,10 @@ export default function CourseDetail() {
                             <div className="mx-auto mb-2 w-full max-w-[380px] rounded-2xl border border-border bg-white p-3">
                               <img
                                 src={paymentQR}
-                                alt="Payment QR Code"
-                                className="w-full h-auto aspect-square object-contain"
+                                alt="PhonePe QR code to pay KnowGraph"
+                                // Natural aspect ratio: forcing this into a square box
+                                // letterboxes it and shrinks the QR itself.
+                                className="w-full h-auto rounded-lg"
                                 onError={(e) => {
                                   console.error('QR image failed to load', e);
                                   const target = e.target as HTMLImageElement;

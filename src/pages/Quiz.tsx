@@ -379,7 +379,7 @@ export default function QuizPage() {
                 <div className="space-y-3">
                   {currentQuestionData.question_type === 'mcq' && (
                     <RadioGroup
-                      value={answers[currentQuestionData.id]}
+                      value={answers[currentQuestionData.id] || ""}
                       onValueChange={(value) =>
                         setAnswers({ ...answers, [currentQuestionData.id]: value })
                       }
@@ -397,7 +397,7 @@ export default function QuizPage() {
 
                   {currentQuestionData.question_type === 'true_false' && (
                     <RadioGroup
-                      value={answers[currentQuestionData.id]}
+                      value={answers[currentQuestionData.id] || ""}
                       onValueChange={(value) =>
                         setAnswers({ ...answers, [currentQuestionData.id]: value })
                       }
