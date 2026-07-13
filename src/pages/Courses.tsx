@@ -15,8 +15,14 @@ import aiThumb from '@/assets/thumbnails/ai-bootcamp.svg?url';
 import mlThumb from '@/assets/thumbnails/ml-fundamentals.svg?url';
 import roboticsThumb from '@/assets/thumbnails/robotics-projects.svg?url';
 
+/** Course, plus the counts computed at fetch time from the nested rows. */
+interface CourseWithCounts extends Course {
+  modules_count: number;
+  capsules_count: number;
+}
+
 export default function Courses() {
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [courses, setCourses] = useState<CourseWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
   const fallbackCourseImage = 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1400&q=80';
 
@@ -35,12 +41,15 @@ export default function Courses() {
       console.error('Error fetching courses:', error);
     } else {
       // Normalize and include module/capsule counts
-      const enriched = (data || []).map((c: any) => ({
+      const enriched: CourseWithCounts[] = (data || []).map((c: any) => ({
         ...c,
         modules_count: (c.learning_paths || []).length,
-        capsules_count: (c.learning_paths || []).reduce((acc: number, p: any) => acc + (p.capsules || []).length, 0),
+        capsules_count: (c.learning_paths || []).reduce(
+          (acc: number, p: any) => acc + (p.capsules || []).length,
+          0
+        ),
       }));
-      setCourses(enriched || []);
+      setCourses(enriched);
     }
     setLoading(false);
   };
@@ -177,8 +186,7 @@ export default function Courses() {
                           />
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                        <Badge className="absolute top-4 left-4 bg-cyan-500 text-cyan-950">Featured</Badge>
-                        <div className="absolute bottom-4 right-4 rounded-full bg-black/60 px-3 py-1 text-xs text-slate-100">{course.capsules_count ?? 0} capsules</div>
+                        <div className="absolute bottom-4 right-4 rounded-full bg-black/60 px-3 py-1 text-xs text-slate-100">{course.capsules_count} lessons</div>
                       </div>
 
                       <CardHeader className="flex-1 pt-5">
@@ -190,11 +198,11 @@ export default function Courses() {
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div className="rounded-3xl bg-slate-950/85 p-4 text-sm text-slate-300 ring-1 ring-white/5">
                             <div className="font-medium text-slate-100">Modules</div>
-                            <div className="mt-2 text-lg font-semibold">{course.modules_count ?? 0}</div>
+                            <div className="mt-2 text-lg font-semibold">{course.modules_count}</div>
                           </div>
                           <div className="rounded-3xl bg-slate-950/85 p-4 text-sm text-slate-300 ring-1 ring-white/5">
-                            <div className="font-medium text-slate-100">Duration</div>
-                            <div className="mt-2 text-lg font-semibold">{Math.max(4, course.modules_count ?? 1)} weeks</div>
+                            <div className="font-medium text-slate-100">Lessons</div>
+                            <div className="mt-2 text-lg font-semibold">{course.capsules_count}</div>
                           </div>
                         </div>
                         <div className="rounded-3xl bg-slate-950/85 p-4 text-sm text-slate-300 ring-1 ring-white/5">
