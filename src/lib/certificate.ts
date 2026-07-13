@@ -1,8 +1,12 @@
-// ?inline forces Vite to emit a base64 data URI rather than a URL. That is required:
-// the certificate SVG is rasterised to PNG through a canvas, and a canvas drawing an
-// SVG that references an external image is tainted — toBlob() then throws and the
-// download silently fails. A data URI keeps the whole thing self-contained.
-import logoDataUri from '@/assets/knowgraph-logo-mark.png?inline';
+// The certificate SVG is rasterised to PNG through a canvas, and a canvas drawing an SVG
+// that references an EXTERNAL image is tainted — toBlob() throws, and the logo never
+// appears. It must therefore be a data URI, self-contained inside the SVG.
+//
+// This used to be `import logoDataUri from '@/assets/knowgraph-logo-mark.png?inline'`,
+// which was supposed to guarantee that. It did not — the built bundle contained no base64
+// at all, just a file URL, so every certificate shipped with a blank space where the logo
+// should have been. The bytes are embedded directly now.
+import { LOGO_DATA_URI as logoDataUri } from '@/assets/logo-data-uri';
 
 export interface CertificateData {
   studentName: string;

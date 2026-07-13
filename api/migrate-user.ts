@@ -160,9 +160,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Course ids are identical in V2 (content was seeded with its original UUIDs),
     // so these carry across untouched apart from the new user id.
+    //
+    // A returning learner is approved on arrival. They already paid, on the old platform,
+    // and making them wait for an admin to re-approve a course they have been studying for
+    // months would be the worst possible first impression of the new one. New signups still
+    // go through the normal pending -> admin-approves flow; this shortcut exists only for
+    // people whose payment V1 has already vouched for.
+    //
+    // A rejected enrolment stays rejected. It was refused for a reason, and "everyone from
+    // V1 gets in" must not quietly become "including the people we turned away".
     if (enrollments?.length) {
       await v2.from('enrollments').upsert(
-        enrollments.map(({ id: _drop, user_id: _u, ...rest }) => ({ ...rest, user_id: newId })),
+        enrollments.map(({ id: _drop, user_id: _u, status, approved_at, ...rest }) => ({
+          ...rest,
+          user_id: newId,
+          status: status === 'rejected' ? 'rejected' : 'approved',
+          approved_at: status === 'rejected' ? null : (approved_at ?? new Date().toISOString()),
+        })),
         { onConflict: 'user_id,course_id' }
       );
     }
