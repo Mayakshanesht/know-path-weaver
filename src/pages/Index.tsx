@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Sparkles, ShieldCheck, TrendingUp, Zap } from 'lucide-react';
+import { ArrowRight, BookOpen, Rocket, ShieldCheck, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import heroGif from '@/assets/Create_a_smooth_202601060305.gif';
@@ -48,8 +48,8 @@ export default function Index() {
               transition={{ duration: 0.6 }}
               className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-200 shadow-xl shadow-cyan-500/10"
             >
-              <Sparkles className="w-4 h-4" />
-              New product launch: join the waitlist.
+              <Rocket className="w-4 h-4" />
+              KnowGraph v1 is live — all five courses are open for enrolment.
             </motion.div>
 
             <motion.div
@@ -58,18 +58,35 @@ export default function Index() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="space-y-6"
             >
+              {/*
+                This said "Soft launch soon" and the buttons said "Join waitlist". The site is
+                live and selling, so anyone arriving from the launch post was being told they
+                could not buy anything. The page now says what KnowGraph is and sends them to
+                the courses.
+              */}
               <div className="flex flex-wrap items-center gap-4">
                 <img src={updatedLogo} alt="KnowGraph" className="h-16 w-auto rounded-2xl border border-white/10 bg-white/5 p-2 shadow-lg shadow-cyan-500/10" />
-                <span className="rounded-full bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.24em] text-cyan-200 shadow-sm shadow-cyan-500/10">
-                  Soft launch soon
+                <span className="rounded-full bg-cyan-400/15 px-4 py-2 text-xs uppercase tracking-[0.24em] text-cyan-200 shadow-sm shadow-cyan-500/10">
+                  Now enrolling
                 </span>
               </div>
 
               <h1 className="text-5xl sm:text-6xl font-bold leading-tight tracking-tight max-w-3xl">
-                Build learning journeys that feel intuitive and connected.
+                Robotics, taught as{' '}
+                <span className="bg-gradient-to-r from-cyan-300 to-sky-400 bg-clip-text text-transparent">
+                  one pipeline
+                </span>
+                .
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-slate-300">
-                KnowGraph turns every course into a visual knowledge graph with capsules, checkpoints, and verified payment approval for learners and creators.
+                Most courses teach you one box on the diagram. You learn perception, and nobody
+                tells you what the planner needed from it. KnowGraph teaches the whole stack in
+                order — perception, prediction, planning, control and the safety case — where
+                every module says what it builds on and what breaks without it.
+              </p>
+              <p className="max-w-2xl text-base leading-7 text-slate-400">
+                Real Colab notebooks and real datasets — KITTI, MetaDrive, GTSRB. You write the
+                code. Browse every module and lesson before you pay anything.
               </p>
             </motion.div>
 
@@ -85,7 +102,7 @@ export default function Index() {
                 className="w-full sm:w-auto text-lg bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-500 text-slate-950 shadow-lg shadow-cyan-500/25"
               >
                 <Link to="/courses" className="inline-flex w-full items-center justify-center gap-2">
-                  Explore courses
+                  Browse the courses
                   <ArrowRight className="w-5 h-5" />
                 </Link>
               </Button>
@@ -95,7 +112,7 @@ export default function Index() {
                 className="w-full sm:w-auto text-lg bg-slate-100 text-slate-950 hover:bg-slate-200"
               >
                 <Link to="/signup" className="inline-flex w-full items-center justify-center">
-                  Join waitlist
+                  Create your account
                 </Link>
               </Button>
             </motion.div>
@@ -106,10 +123,14 @@ export default function Index() {
               transition={{ duration: 0.6, delay: 0.3 }}
               className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl"
             >
+              {/*
+                Real, checkable numbers instead of "Rapid adoption" and "Graph-first flow",
+                which promised nothing a learner could verify or care about.
+              */}
               {[
-                { icon: <TrendingUp className="w-5 h-5 text-cyan-300" />, value: 'Rapid adoption', label: 'Launch-ready' },
-                { icon: <Zap className="w-5 h-5 text-violet-300" />, value: 'Graph-first flow', label: 'Learning paths' },
-                { icon: <ShieldCheck className="w-5 h-5 text-sky-300" />, value: 'Secure payments', label: 'Receipt verified' },
+                { icon: <BookOpen className="w-5 h-5 text-cyan-300" />, value: '178 lessons', label: 'Across 5 courses and 45 modules' },
+                { icon: <Zap className="w-5 h-5 text-violet-300" />, value: '118 hours', label: 'Lectures, notebooks and projects' },
+                { icon: <ShieldCheck className="w-5 h-5 text-sky-300" />, value: '96 quizzes', label: 'Testing understanding, not recall' },
               ].map((stat) => (
                 <div key={stat.label} className="rounded-3xl border border-white/10 bg-white/5 px-5 py-6 text-center backdrop-blur-sm shadow-2xl shadow-slate-950/10">
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900/80 text-cyan-200 shadow-inner">
@@ -135,18 +156,21 @@ export default function Index() {
             </div>
 
             <div className="pointer-events-none absolute left-6 top-6 rounded-full bg-cyan-400/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-cyan-200 shadow-lg shadow-cyan-500/20">
-              Launching soon
+              Live now
             </div>
             <div className="absolute inset-x-6 bottom-6 grid gap-3 rounded-3xl border border-white/10 bg-slate-950/70 p-4 text-sm shadow-2xl shadow-slate-950/20 backdrop-blur-sm">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-slate-300">
                 <div>
-                  <span className="text-xs uppercase tracking-[0.25em] text-slate-400">Ready for beta</span>
+                  <span className="text-xs uppercase tracking-[0.25em] text-slate-400">The pipeline</span>
                 </div>
                 <span className="inline-flex rounded-full bg-cyan-500/15 px-3 py-1 text-xs font-semibold uppercase text-cyan-200">
-                  Join waitlist
+                  Certificate included
                 </span>
               </div>
-              <p className="text-sm font-medium text-white">Boost learner engagement with visual course graphs and capsule progress.</p>
+              <p className="text-sm font-medium text-white">
+                Sense → Perceive → Predict → Plan → Control → Certify. Taught in that order,
+                because that is the order it has to work in.
+              </p>
             </div>
           </motion.div>
         </div>
