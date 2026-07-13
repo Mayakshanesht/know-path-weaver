@@ -42,6 +42,25 @@ export function regionForCountry(countryCode: string): BillingRegion {
   return countryCode === 'IN' ? 'india' : 'international';
 }
 
+/**
+ * The state a GST invoice calls the "place of supply".
+ *
+ * For an online course sold to an unregistered person, the place of supply is the buyer's
+ * location — and it decides the tax split. KnowGraph is registered in Maharashtra, so a
+ * Maharashtra buyer pays CGST + SGST and everyone else in India pays IGST. There is no way
+ * to work this out after the sale, so the form has to ask.
+ */
+export const SELLER_STATE = 'Maharashtra';
+
+export const INDIAN_STATES = [
+  'Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar',
+  'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Goa',
+  'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir', 'Jharkhand', 'Karnataka',
+  'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya',
+  'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim',
+  'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+] as const;
+
 export function countryName(code: string | null | undefined): string {
   if (!code) return 'Unknown';
   return COUNTRIES.find((c) => c.code === code)?.name ?? code;

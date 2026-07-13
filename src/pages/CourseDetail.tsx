@@ -44,7 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { COUNTRIES, guessCountry, regionForCountry } from '@/lib/countries';
+import { COUNTRIES, INDIAN_STATES, guessCountry, regionForCountry } from '@/lib/countries';
 
 interface LearningPathWithCapsules extends LearningPath {
   capsules: Capsule[];
@@ -66,6 +66,7 @@ export default function CourseDetail() {
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
   // Prefilled from the browser locale, so most learners never open the dropdown.
   const [billingCountry, setBillingCountry] = useState<string>(() => guessCountry());
+  const [billingState, setBillingState] = useState<string>('');
 
   useEffect(() => {
     if (courseId) {
@@ -137,6 +138,17 @@ export default function CourseDetail() {
       return;
     }
 
+    // Without the buyer's state we cannot tell CGST+SGST from IGST, and the invoice we
+    // issue would not be a valid tax invoice.
+    if (regionForCountry(billingCountry) === 'india' && !billingState) {
+      toast({
+        title: 'State required',
+        description: 'Please select your state — it decides the GST breakdown on your invoice.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setEnrolling(true);
 
     try {
@@ -176,6 +188,7 @@ export default function CourseDetail() {
         ...base,
         billing_country: billingCountry,
         billing_region: regionForCountry(billingCountry),
+        billing_state: regionForCountry(billingCountry) === 'india' ? billingState : null,
       });
 
       // PGRST204 = the column is not in the schema cache, i.e. the invoicing
@@ -532,6 +545,34 @@ export default function CourseDetail() {
                                 : 'Required so we can issue a valid invoice.'}
                             </p>
                           </div>
+
+                          {/*
+                            The place of supply. For an online course sold to an unregistered
+                            person, GST is decided by the buyer's state: Maharashtra pays
+                            CGST + SGST, anywhere else in India pays IGST. It cannot be worked
+                            out after the sale, so the form has to ask — and without it the
+                            invoice is not a valid tax invoice.
+                          */}
+                          {regionForCountry(billingCountry) === 'india' && (
+                            <div className="space-y-2">
+                              <Label htmlFor="billingState">State *</Label>
+                              <Select value={billingState} onValueChange={setBillingState}>
+                                <SelectTrigger id="billingState">
+                                  <SelectValue placeholder="Select your state" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-64">
+                                  {INDIAN_STATES.map((s) => (
+                                    <SelectItem key={s} value={s}>
+                                      {s}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <p className="text-xs text-muted-foreground">
+                                Your place of supply. It decides the GST breakdown on your invoice.
+                              </p>
+                            </div>
+                          )}
 
                           {/* Payment Reference */}
                           <div className="space-y-2">

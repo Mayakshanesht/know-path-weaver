@@ -55,6 +55,38 @@ interface Invoice {
   tax_amount: number | null;
   tax_label: string | null;
   seller_gstin: string | null;
+
+  // GST is CGST+SGST when the buyer is in the seller's own state, and IGST otherwise. The
+  // place of supply is the buyer's state, captured at the point of sale — it cannot be
+  // recovered afterwards.
+  place_of_supply: string | null;
+  cgst_amount: number | null;
+  sgst_amount: number | null;
+  igst_amount: number | null;
+}
+
+interface Seller {
+  legal_name: string;
+  address: string | null;
+  gstin: string | null;
+  place_of_supply: string | null;
+}
+
+/** Break a long line so it cannot run off the edge of the page. */
+function wrap(value: string, maxChars: number): string[] {
+  const words = value.split(/\s+/);
+  const lines: string[] = [];
+  let line = '';
+  for (const w of words) {
+    if ((line + ' ' + w).trim().length > maxChars && line) {
+      lines.push(line.trim());
+      line = w;
+    } else {
+      line = (line + ' ' + w).trim();
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
 }
 
 const money = (amount: number, currency: string) =>
@@ -92,7 +124,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Not rendered yet — do it now. Month-partitioned, so a year-end tax export is a
     // prefix listing rather than a scan.
     if (!path) {
-      const pdf = await renderInvoice(invoice);
+      // The registered legal name, address and GSTIN live in billing_settings so they can be
+      // corrected without a deploy. A tax invoice needs all three, not just the number.
+      const { data: settings } = await admin
+        .from('billing_settings')
+        .select('legal_name, address, gstin, place_of_supply')
+        .maybeSingle<Seller>();
+
+      const pdf = await renderInvoice(invoice, settings ?? null);
       const month = String(invoice.period_month).padStart(2, '0');
       path = `${invoice.period_year}/${month}/${invoice.invoice_number}.pdf`;
 
@@ -118,7 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-async function renderInvoice(invoice: Invoice): Promise<Uint8Array> {
+async function renderInvoice(invoice: Invoice, seller: Seller | null): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const page = doc.addPage([595, 842]); // A4
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -187,21 +226,35 @@ async function renderInvoice(invoice: Invoice): Promise<Uint8Array> {
   y -= 40;
   text('From', left, y, 9, true, MUTED);
   y -= 16;
-  text(SELLER.name, left, y, 11, true);
-  y -= 14;
-  if (SELLER.address) {
-    text(SELLER.address, left, y, 10, false, MUTED);
-    y -= 14;
+  text(seller?.legal_name || SELLER.name, left, y, 11, true);
+
+  // The registered address, wrapped — it is one long line and would otherwise run off the
+  // page and out of the PDF entirely.
+  const address = seller?.address ?? SELLER.address;
+  if (address) {
+    for (const line of wrap(address, 58)) {
+      y -= 13;
+      text(line, left, y, 9, false, MUTED);
+    }
   }
+
+  y -= 14;
   text(SELLER.email, left, y, 10, false, MUTED);
 
-  // The GSTIN recorded on the invoice at the time it was issued wins over the current env
-  // var: if the number ever changes, an old invoice must keep showing the number that was
-  // actually in force when the sale happened.
-  const gstin = invoice.seller_gstin || SELLER.taxId;
+  // The GSTIN recorded on the invoice when it was issued wins over the current setting: if
+  // the number ever changes, an old invoice must keep showing the one in force at the sale.
+  const gstin = invoice.seller_gstin || seller?.gstin || SELLER.taxId;
   if (gstin) {
     y -= 14;
-    text(`GSTIN: ${gstin}`, left, y, 10, false, MUTED);
+    text(`GSTIN: ${gstin}`, left, y, 10, true);
+  }
+  if (seller?.place_of_supply) {
+    y -= 13;
+    text(`State: ${seller.place_of_supply}`, left, y, 9, false, MUTED);
+  }
+  if (invoice.place_of_supply) {
+    y -= 13;
+    text(`Place of supply: ${invoice.place_of_supply}`, left, y, 9, false, MUTED);
   }
 
   y -= 46;
@@ -234,9 +287,30 @@ async function renderInvoice(invoice: Invoice): Promise<Uint8Array> {
   y -= 20;
   text('Subtotal (excl. tax)', left, y, 10, false, MUTED);
   rightText(money(base, invoice.currency), y, 10, false, MUTED);
-  y -= 15;
-  text(invoice.tax_label ?? 'Tax', left, y, 10, false, MUTED);
-  rightText(money(tax, invoice.currency), y, 10, false, MUTED);
+
+  // A valid Indian tax invoice must show CGST and SGST separately for an intra-state sale,
+  // and IGST for an inter-state one. One lumped "GST" line is not enough.
+  const cgst = Number(invoice.cgst_amount ?? 0);
+  const sgst = Number(invoice.sgst_amount ?? 0);
+  const igst = Number(invoice.igst_amount ?? 0);
+  const half = (invoice.tax_rate ?? 0) / 2;
+
+  if (cgst > 0 || sgst > 0) {
+    y -= 15;
+    text(`CGST @ ${half}%`, left, y, 10, false, MUTED);
+    rightText(money(cgst, invoice.currency), y, 10, false, MUTED);
+    y -= 15;
+    text(`SGST @ ${half}%`, left, y, 10, false, MUTED);
+    rightText(money(sgst, invoice.currency), y, 10, false, MUTED);
+  } else if (invoice.region === 'india') {
+    y -= 15;
+    text(`IGST @ ${invoice.tax_rate ?? 18}%`, left, y, 10, false, MUTED);
+    rightText(money(igst, invoice.currency), y, 10, false, MUTED);
+  } else {
+    y -= 15;
+    text(invoice.tax_label ?? 'Tax', left, y, 10, false, MUTED);
+    rightText(money(tax, invoice.currency), y, 10, false, MUTED);
+  }
 
   y -= 22;
   page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: RULE });
