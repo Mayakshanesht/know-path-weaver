@@ -215,13 +215,9 @@ export default function Dashboard() {
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={!invoice.storage_path || downloadingId === invoice.id}
+                        disabled={downloadingId === invoice.id}
                         onClick={() => download(invoice.id)}
-                        title={
-                          invoice.storage_path
-                            ? 'Download invoice'
-                            : 'Your invoice is still being generated'
-                        }
+                        title="Download invoice (PDF)"
                       >
                         {downloadingId === invoice.id ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />

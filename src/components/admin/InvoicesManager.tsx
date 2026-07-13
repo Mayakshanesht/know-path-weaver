@@ -78,6 +78,50 @@ export default function InvoicesManager() {
     return acc;
   }, [visible]);
 
+  /**
+   * Flips an invoice between India and international.
+   *
+   * Region is not cosmetic: it decides both the price charged (price_india vs
+   * price_international) and the currency, so changing it must reprice the invoice —
+   * and must discard the stored PDF, or the file on disk would keep showing the old
+   * figure while the row says something else.
+   *
+   * Needed because the enrollments approved before checkout captured a country have no
+   * region, and it cannot be recovered from the data.
+   */
+  const setRegion = async (invoice: Invoice, region: 'india' | 'international') => {
+    if (region === invoice.region) return;
+
+    const { data: course } = await supabase
+      .from('courses')
+      .select('price_india, price_international')
+      .eq('id', invoice.course_id)
+      .maybeSingle();
+
+    const amount =
+      region === 'india' ? (course?.price_india ?? 0) : (course?.price_international ?? 0);
+
+    const { error } = await supabase
+      .from('invoices')
+      .update({
+        region,
+        amount,
+        currency: region === 'india' ? 'INR' : 'EUR',
+        storage_path: null, // force the PDF to re-render at the corrected figure
+      })
+      .eq('id', invoice.id);
+
+    if (error) {
+      toast({ title: 'Could not update', description: error.message, variant: 'destructive' });
+    } else {
+      toast({
+        title: 'Invoice repriced',
+        description: `${invoice.invoice_number} is now ${region === 'india' ? 'INR' : 'EUR'} ${amount}.`,
+      });
+      await fetchInvoices();
+    }
+  };
+
   const exportCsv = () => {
     const header = [
       'invoice_number', 'issued_at', 'buyer_name', 'buyer_email',
@@ -194,17 +238,26 @@ export default function InvoicesManager() {
                     <Badge variant={invoice.region === 'india' ? 'secondary' : 'outline'}>
                       {countryName(invoice.billing_country)}
                     </Badge>
-                    {!invoice.storage_path && (
-                      <Badge variant="outline" className="gap-1 text-amber-600">
-                        <Clock className="h-3 w-3" />
-                        PDF pending
-                      </Badge>
-                    )}
                   </div>
                   <p className="mt-1 truncate text-sm text-muted-foreground">
                     {invoice.buyer_name ?? invoice.buyer_email ?? 'Unknown'} — {invoice.course_title}
                   </p>
                 </div>
+
+                {/* Region drives price and currency, and the older enrollments have
+                    none, so it has to be correctable. */}
+                <Select
+                  value={invoice.region}
+                  onValueChange={(v) => setRegion(invoice, v as 'india' | 'international')}
+                >
+                  <SelectTrigger className="h-8 w-36">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="india">India — INR</SelectItem>
+                    <SelectItem value="international">International — EUR</SelectItem>
+                  </SelectContent>
+                </Select>
 
                 <div className="text-right">
                   <p className="font-semibold">
@@ -218,8 +271,9 @@ export default function InvoicesManager() {
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={!invoice.storage_path || downloadingId === invoice.id}
+                  disabled={downloadingId === invoice.id}
                   onClick={() => download(invoice.id)}
+                  title="Downloads the PDF, rendering it if this is the first time"
                 >
                   {downloadingId === invoice.id ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

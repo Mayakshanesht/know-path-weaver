@@ -57,10 +57,15 @@ for (const e of pending) {
     continue;
   }
 
-  // Region was not captured before checkout asked for it. Default to international
-  // rather than guess: it is the safer assumption for tax, and an admin can correct
-  // a specific invoice. Never invent a buyer's country.
-  const region = e.billing_region ?? 'international';
+  // Region was not captured before checkout started asking for it, and it cannot be
+  // recovered from the data: the payment_reference values are cohort labels
+  // ("ADAS Batch Sept 2025"), not UPI/UTR transaction ids, and 18 of 39 have none.
+  //
+  // Default to India, because payment is collected over PhonePe — an Indian UPI rail
+  // — so that is the likeliest truth for most of them. It is still a default, not a
+  // fact, which is why the admin invoices tab can flip any one of these to
+  // international; doing so reprices the invoice and re-renders its PDF.
+  const region = e.billing_region ?? (process.env.BACKFILL_REGION ?? 'india');
   const amount = region === 'india' ? (course.price_india ?? 0) : (course.price_international ?? 0);
   const currency = region === 'india' ? 'INR' : 'EUR';
 
