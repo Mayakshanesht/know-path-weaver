@@ -22,7 +22,9 @@ export const PAYMENT_DETAILS = {
   branch: 'Ranjangaon Sandas',
   accountNumber: '183001600000130',
   ifsc: 'HDFC0CPDCCB',
-  email: 'support@knowgraph.com',
+  // Was support@knowgraph.com — a domain nobody owns. This is the address a buyer writes to
+  // when their payment has gone wrong, so it has to be one that actually reaches someone.
+  email: 'mayurwaghchoure1995@gmail.com',
   whatsapp: '+91 88305 79377',
 };
 

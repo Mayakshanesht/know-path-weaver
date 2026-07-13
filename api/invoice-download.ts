@@ -29,7 +29,7 @@ const RULE = rgb(0.88, 0.9, 0.92);
 const SELLER = {
   name: process.env.INVOICE_SELLER_NAME ?? 'KnowGraph',
   address: process.env.INVOICE_SELLER_ADDRESS ?? '',
-  email: process.env.INVOICE_SELLER_EMAIL ?? 'support@knowgraph.com',
+  email: process.env.INVOICE_SELLER_EMAIL ?? 'mayurwaghchoure1995@gmail.com',
   taxId: process.env.INVOICE_SELLER_TAX_ID ?? '',
 };
 

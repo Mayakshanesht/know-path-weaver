@@ -14,7 +14,8 @@ export default function Footer() {
               <span className="font-bold text-xl">KnowGraph</span>
             </Link>
             <p className="text-muted-foreground max-w-sm">
-              Graph-based learning platform with structured capsule courses and prerequisite tracking.
+              Robotics, taught as one pipeline. Perception, prediction, planning, control and the
+              safety case — in order, as one system, with every module saying what it builds on.
             </p>
           </div>
 
@@ -29,7 +30,7 @@ export default function Footer() {
               </li>
               <li>
                 <Link to="/signup" className="text-muted-foreground hover:text-foreground transition-colors">
-                  Join Beta
+                  Enrol
                 </Link>
               </li>
               <li>
@@ -43,9 +44,21 @@ export default function Footer() {
           {/* Contact */}
           <div>
             <h4 className="font-semibold mb-4">Contact</h4>
+            {/*
+              This said support@knowgraph.com, a domain that is not owned — a learner with a
+              payment problem would have emailed it and heard nothing back. It is the address
+              on the invoices too. Use the one that actually reaches someone.
+            */}
             <ul className="space-y-2 text-muted-foreground">
-              <li>support@knowgraph.com</li>
-              <li>Beta v1.0</li>
+              <li>
+                <a
+                  href="mailto:mayurwaghchoure1995@gmail.com"
+                  className="hover:text-foreground transition-colors"
+                >
+                  mayurwaghchoure1995@gmail.com
+                </a>
+              </li>
+              <li>v1.0</li>
             </ul>
           </div>
         </div>
@@ -55,7 +68,7 @@ export default function Footer() {
             © {new Date().getFullYear()} KnowGraph. All rights reserved.
           </p>
           <p className="text-sm text-muted-foreground">
-            Made with ❤️ for learners everywhere
+            Built by engineers, for engineers.
           </p>
         </div>
       </div>
