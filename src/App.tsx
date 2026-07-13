@@ -45,7 +45,14 @@ const App = () => (
             <Route path="/quick-reset" element={<QuickPasswordReset />} />
             <Route path="/quiz/:quizId" element={<ProtectedRoute><Quiz /></ProtectedRoute>} />
             <Route path="/home" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
-            <Route path="/courses" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
+            {/*
+              Public. The catalogue is the shop window: a prospective learner should be able
+              to read every module and lesson description before deciding to pay, and sending
+              them to a login screen first is how you lose them. The product itself is safe
+              without a route guard here — capsule_content is gated in the database on an
+              approved enrollment, which is the only place a paywall actually holds.
+            */}
+            <Route path="/courses" element={<Courses />} />
             <Route path="/courses/:courseId" element={<CourseDetail />} />
             <Route path="/course/:slug" element={<MarketingCourseDetail />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
