@@ -34,8 +34,10 @@ import {
   GripVertical,
   ChevronDown,
   ChevronUp,
+  Sparkles,
 } from 'lucide-react';
 import { SortableList, DragHandle, DragHandleProps } from '@/components/admin/SortableList';
+import CourseAssistant from '@/components/admin/CourseAssistant';
 import { persistOrder, reorderArray } from '@/lib/reorder';
 
 interface CourseWithPaths extends Course {
@@ -437,6 +439,7 @@ function CourseCard({
   const [newPathTitle, setNewPathTitle] = useState('');
   // Non-null only between a drop and the refetch landing.
   const [orderedPaths, setOrderedPaths] = useState<CourseWithPaths['learning_paths'] | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   useEffect(() => {
     setOrderedPaths(null);
@@ -516,6 +519,15 @@ function CourseCard({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAssistantOpen(true)}
+              title="Suggest better titles and descriptions from what is inside each lesson"
+            >
+              <Sparkles className="w-4 h-4 mr-1.5" />
+              Improve
+            </Button>
             <Button variant="ghost" size="icon" onClick={onEdit}>
               <Edit className="w-4 h-4" />
             </Button>
@@ -532,6 +544,16 @@ function CourseCard({
           </div>
         </div>
       </CardHeader>
+
+      {assistantOpen && (
+        <CourseAssistant
+          courseId={course.id}
+          courseTitle={course.title}
+          open={assistantOpen}
+          onOpenChange={setAssistantOpen}
+          onApplied={onRefresh}
+        />
+      )}
 
       {expanded && (
         <CardContent className="pt-0">
