@@ -57,6 +57,17 @@ export function supabaseAsCaller(authHeader: string): SupabaseClient {
  * output impossible rather than merely unlikely, so callers don't need to defend
  * against a missing field.
  */
+/**
+ * Groq's rate limit is tokens-per-minute, and it counts the *reservation*:
+ * input tokens + max_completion_tokens, not what the model actually emits. So an
+ * oversized max_completion_tokens is charged against the budget even when the reply
+ * is short, and on the free tier (8k TPM for gpt-oss-120b) a careless 8000 spends
+ * the entire minute's allowance before a single prompt token is counted.
+ *
+ * Keep these tight and sized to the actual job.
+ */
+export const TPM_LIMIT = 8000;
+
 export async function structured<T>(
   client: Groq,
   opts: {
@@ -67,9 +78,21 @@ export async function structured<T>(
     maxTokens?: number;
   }
 ): Promise<T> {
+  const maxTokens = opts.maxTokens ?? 3000;
+
+  // Rough token estimate (~4 chars/token) purely to fail with a useful message
+  // rather than a raw 413 from Groq.
+  const estimatedInput = Math.ceil((opts.system.length + opts.prompt.length) / 4);
+  if (estimatedInput + maxTokens > TPM_LIMIT) {
+    throw new Error(
+      `Prompt too large for the ${TPM_LIMIT} tokens/min limit ` +
+        `(~${estimatedInput} in + ${maxTokens} out). Shorten the input.`
+    );
+  }
+
   const completion = await client.chat.completions.create({
     model: SCHEMA_MODEL,
-    max_completion_tokens: opts.maxTokens ?? 8000,
+    max_completion_tokens: maxTokens,
     messages: [
       { role: 'system', content: opts.system },
       { role: 'user', content: opts.prompt },

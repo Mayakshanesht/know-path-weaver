@@ -129,16 +129,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ],
     });
 
-    const findings = research.choices[0]?.message?.content ?? '';
-    if (!findings.trim()) {
+    const raw = research.choices[0]?.message?.content ?? '';
+    if (!raw.trim()) {
       throw new Error('Research pass returned no usable text.');
     }
+
+    // A web-search turn can return a lot of text, and the TPM budget charges input
+    // and max_completion_tokens together. Cap the research so a verbose search can
+    // never push the writing call over the limit.
+    const findings = raw.length > 6000 ? `${raw.slice(0, 6000)}\n[truncated]` : raw;
 
     // --- Pass 2: shape into an article (strict schema, no tools) -------------
     const article = await structured<Article>(client, {
       system: SYSTEM,
       schemaName: 'article',
       schema: ARTICLE_SCHEMA,
+      // A 600-900 word article is ~1500 tokens. 4000 covers it plus the JSON
+      // envelope, and with findings capped at ~1500 input tokens the whole call
+      // lands near 6k — inside the 8k/min ceiling.
+      maxTokens: 4000,
       prompt:
         `Write the article from this research. Use only what the research supports — ` +
         `do not add facts, numbers, or sources that do not appear here.\n\n` +

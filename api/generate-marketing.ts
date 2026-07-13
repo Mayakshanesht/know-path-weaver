@@ -143,6 +143,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       system: SYSTEM,
       schemaName: 'marketing_variants',
       schema: VARIANTS_SCHEMA,
+      // Three posts of under 200 words each is ~1000 tokens of output. 2500 leaves
+      // comfortable headroom while staying well inside the 8k/min TPM budget, which
+      // charges input + this number together.
+      maxTokens: 2500,
       prompt:
         `Write three ${channel === 'linkedin' ? 'LinkedIn posts' : 'marketing emails'} for this course.\n\n` +
         `${courseContext}\n\n` +
