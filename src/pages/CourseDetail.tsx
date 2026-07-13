@@ -34,6 +34,14 @@ import {
   Info,
 } from 'lucide-react';
 import paymentQR from '@/assets/payment_qr_code_cropped.jpeg?url';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { COUNTRIES, guessCountry, regionForCountry } from '@/lib/countries';
 
 interface LearningPathWithCapsules extends LearningPath {
   capsules: Capsule[];
@@ -53,6 +61,8 @@ export default function CourseDetail() {
   const [paymentReference, setPaymentReference] = useState('');
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
+  // Prefilled from the browser locale, so most learners never open the dropdown.
+  const [billingCountry, setBillingCountry] = useState<string>(() => guessCountry());
 
   useEffect(() => {
     if (courseId) {
@@ -115,6 +125,15 @@ export default function CourseDetail() {
       return;
     }
 
+    if (!billingCountry) {
+      toast({
+        title: 'Country required',
+        description: 'We need your country to issue a valid invoice.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setEnrolling(true);
 
     try {
@@ -140,13 +159,16 @@ export default function CourseDetail() {
         receiptUrl = urlData.publicUrl;
       }
 
-      // Create enrollment
+      // Create enrollment. billing_country/_region are recorded now, at the point of
+      // sale, because that is the only moment they are actually knowable.
       const { error: enrollError } = await supabase.from('enrollments').insert({
         user_id: authUser.id,
         course_id: course.id,
         payment_reference: paymentReference || null,
         payment_receipt_url: receiptUrl,
         status: 'pending',
+        billing_country: billingCountry,
+        billing_region: regionForCountry(billingCountry),
       });
 
       if (enrollError) {
@@ -452,6 +474,30 @@ export default function CourseDetail() {
                               </p>
                             </div>
                           )}
+
+                          {/* Billing country: decides the invoice's tax region. */}
+                          <div className="space-y-2">
+                            <Label htmlFor="billingCountry">Billing Country *</Label>
+                            <Select value={billingCountry} onValueChange={setBillingCountry}>
+                              <SelectTrigger id="billingCountry">
+                                <SelectValue placeholder="Select your country" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-64">
+                                {COUNTRIES.map((c) => (
+                                  <SelectItem key={c.code} value={c.code}>
+                                    {c.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              {billingCountry
+                                ? regionForCountry(billingCountry) === 'india'
+                                  ? 'Billed in INR. Used on your invoice.'
+                                  : 'Billed in EUR. Used on your invoice.'
+                                : 'Required so we can issue a valid invoice.'}
+                            </p>
+                          </div>
 
                           {/* Payment Reference */}
                           <div className="space-y-2">

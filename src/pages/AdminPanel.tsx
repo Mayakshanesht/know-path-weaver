@@ -2,11 +2,12 @@ import { motion } from 'framer-motion';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BookOpen, Users, BarChart3, FileQuestion } from 'lucide-react';
+import { BookOpen, Users, BarChart3, FileQuestion, Receipt } from 'lucide-react';
 import CoursesManager from '@/components/admin/CoursesManager';
 import EnrollmentsManager from '@/components/admin/EnrollmentsManager';
 import ProgressViewer from '@/components/admin/ProgressViewer';
 import QuizzesManager from '@/components/admin/QuizzesManager';
+import InvoicesManager from '@/components/admin/InvoicesManager';
 
 export default function AdminPanel() {
   return (
@@ -25,7 +26,7 @@ export default function AdminPanel() {
           </motion.div>
 
           <Tabs defaultValue="courses" className="space-y-6">
-            <TabsList className="grid w-full max-w-lg grid-cols-4">
+            <TabsList className="grid w-full max-w-2xl grid-cols-5">
               <TabsTrigger value="courses" className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4" />
                 <span className="hidden sm:inline">Courses</span>
@@ -33,6 +34,10 @@ export default function AdminPanel() {
               <TabsTrigger value="enrollments" className="flex items-center gap-2">
                 <Users className="w-4 h-4" />
                 <span className="hidden sm:inline">Enrollments</span>
+              </TabsTrigger>
+              <TabsTrigger value="invoices" className="flex items-center gap-2">
+                <Receipt className="w-4 h-4" />
+                <span className="hidden sm:inline">Invoices</span>
               </TabsTrigger>
               <TabsTrigger value="quizzes" className="flex items-center gap-2">
                 <FileQuestion className="w-4 h-4" />
@@ -50,6 +55,10 @@ export default function AdminPanel() {
 
             <TabsContent value="enrollments">
               <EnrollmentsManager />
+            </TabsContent>
+
+            <TabsContent value="invoices">
+              <InvoicesManager />
             </TabsContent>
 
             <TabsContent value="quizzes">

@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { EnrollmentWithCourse, Progress } from '@/types/database';
+import { EnrollmentWithCourse, Invoice, Progress } from '@/types/database';
 import { downloadCertificate } from '@/lib/certificate';
+import { useInvoiceDownload } from '@/hooks/useInvoiceDownload';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +22,8 @@ import {
   AlertCircle,
   ArrowRight,
   Award,
+  Download,
+  Loader2,
 } from 'lucide-react';
 
 interface EnrollmentWithProgress extends EnrollmentWithCourse {
@@ -32,13 +35,25 @@ interface EnrollmentWithProgress extends EnrollmentWithCourse {
 export default function Dashboard() {
   const { authUser } = useAuth();
   const [enrollments, setEnrollments] = useState<EnrollmentWithProgress[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const { download, downloadingId } = useInvoiceDownload();
 
   useEffect(() => {
     if (authUser) {
       fetchEnrollments();
+      fetchInvoices();
     }
   }, [authUser]);
+
+  const fetchInvoices = async () => {
+    // RLS scopes this to the caller's own invoices.
+    const { data } = await supabase
+      .from('invoices')
+      .select('*')
+      .order('issued_at', { ascending: false });
+    setInvoices((data ?? []) as Invoice[]);
+  };
 
   const fetchEnrollments = async () => {
     if (!authUser) return;
@@ -167,7 +182,58 @@ export default function Dashboard() {
                     Rejected ({rejectedEnrollments.length})
                   </TabsTrigger>
                 )}
+                {invoices.length > 0 && (
+                  <TabsTrigger value="invoices">
+                    Invoices ({invoices.length})
+                  </TabsTrigger>
+                )}
               </TabsList>
+
+              <TabsContent value="invoices" className="space-y-3">
+                {invoices.map((invoice) => (
+                  <Card key={invoice.id}>
+                    <CardContent className="flex flex-wrap items-center gap-4 p-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-mono text-sm font-medium">
+                          {invoice.invoice_number}
+                        </p>
+                        <p className="truncate text-sm text-muted-foreground">
+                          {invoice.course_title}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold">
+                          {new Intl.NumberFormat(
+                            invoice.currency === 'INR' ? 'en-IN' : 'de-DE',
+                            { style: 'currency', currency: invoice.currency }
+                          ).format(Number(invoice.amount))}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(invoice.issued_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!invoice.storage_path || downloadingId === invoice.id}
+                        onClick={() => download(invoice.id)}
+                        title={
+                          invoice.storage_path
+                            ? 'Download invoice'
+                            : 'Your invoice is still being generated'
+                        }
+                      >
+                        {downloadingId === invoice.id ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="mr-2 h-4 w-4" />
+                        )}
+                        Invoice
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </TabsContent>
 
               <TabsContent value="active" className="space-y-6">
                 {approvedEnrollments.length === 0 ? (

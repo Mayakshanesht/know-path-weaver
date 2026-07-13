@@ -199,6 +199,8 @@ export type Database = {
         Row: {
           admin_notes: string | null
           approved_at: string | null
+          billing_country: string | null
+          billing_region: Database["public"]["Enums"]["billing_region"] | null
           course_id: string
           enrolled_at: string
           id: string
@@ -210,6 +212,8 @@ export type Database = {
         Insert: {
           admin_notes?: string | null
           approved_at?: string | null
+          billing_country?: string | null
+          billing_region?: Database["public"]["Enums"]["billing_region"] | null
           course_id: string
           enrolled_at?: string
           id?: string
@@ -221,6 +225,8 @@ export type Database = {
         Update: {
           admin_notes?: string | null
           approved_at?: string | null
+          billing_country?: string | null
+          billing_region?: Database["public"]["Enums"]["billing_region"] | null
           course_id?: string
           enrolled_at?: string
           id?: string
@@ -232,6 +238,81 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "enrollments_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          amount: number
+          billing_country: string | null
+          buyer_email: string | null
+          buyer_name: string | null
+          course_id: string
+          course_title: string
+          created_at: string
+          currency: string
+          enrollment_id: string
+          id: string
+          invoice_number: string
+          issued_at: string
+          period_month: number
+          period_year: number
+          region: Database["public"]["Enums"]["billing_region"]
+          storage_path: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          billing_country?: string | null
+          buyer_email?: string | null
+          buyer_name?: string | null
+          course_id: string
+          course_title: string
+          created_at?: string
+          currency: string
+          enrollment_id: string
+          id?: string
+          invoice_number: string
+          issued_at?: string
+          period_month: number
+          period_year: number
+          region: Database["public"]["Enums"]["billing_region"]
+          storage_path?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          billing_country?: string | null
+          buyer_email?: string | null
+          buyer_name?: string | null
+          course_id?: string
+          course_title?: string
+          created_at?: string
+          currency?: string
+          enrollment_id?: string
+          id?: string
+          invoice_number?: string
+          issued_at?: string
+          period_month?: number
+          period_year?: number
+          region?: Database["public"]["Enums"]["billing_region"]
+          storage_path?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: true
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_course_id_fkey"
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
@@ -538,9 +619,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      reorder_entities: {
+        Args: {
+          p_entity: string
+          p_ids: string[]
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "student"
+      billing_region: "india" | "international"
       content_type:
         | "google_drive"
         | "youtube"

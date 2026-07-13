@@ -22,10 +22,10 @@ export async function persistOrder(
   entity: ReorderableEntity,
   orderedIds: string[]
 ): Promise<void> {
-  const { error } = await supabase.rpc('reorder_entities' as never, {
+  const { error } = await supabase.rpc('reorder_entities', {
     p_entity: entity,
     p_ids: orderedIds,
-  } as never);
+  });
 
   if (!error) return;
 

@@ -185,6 +185,29 @@ export interface EnrollmentWithUserAndCourse extends Enrollment {
   courses: Course;
 }
 
+export type BillingRegion = 'india' | 'international';
+
+export interface Invoice {
+  id: string;
+  invoice_number: string;
+  enrollment_id: string;
+  user_id: string;
+  course_id: string;
+  amount: number;
+  currency: 'INR' | 'EUR';
+  region: BillingRegion;
+  billing_country: string | null;
+  course_title: string;
+  buyer_name: string | null;
+  buyer_email: string | null;
+  period_year: number;
+  period_month: number;
+  /** Null while the PDF is still rendering. */
+  storage_path: string | null;
+  issued_at: string;
+  created_at: string;
+}
+
 // Auth context types
 export interface AuthUser {
   id: string;
