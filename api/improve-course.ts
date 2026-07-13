@@ -2,50 +2,48 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { groq, structured, supabaseAsCaller } from './_lib/groq.js';
 
 /**
- * Proposes better titles and descriptions for a course's modules and capsules.
+ * The course improvement agent.
  *
- * It proposes. It never writes. This is paid course content, and a model that renames
- * "Video 3" to something plausible-but-wrong is worse than the placeholder, because
- * the placeholder at least admits it knows nothing. Every suggestion comes back for
- * the admin to accept or reject.
+ * It can do everything that has so far been done by hand: rename lessons from the
+ * evidence inside them, write the intro that opens a lesson and the pointer that closes
+ * it, write a module overview, write quiz questions, and split a bundled lesson into the
+ * separate pieces of work it actually contains.
  *
- * Grounding is the whole design. The model is given, for each capsule, the titles and
- * types of the content items actually inside it — which is where the real signal lives
- * ("Video 3" contains a Drive file titled "Support Vector Machines") — plus the
- * course syllabus and whatever context the admin types in. It is told, repeatedly,
- * that a capsule with no usable signal must be returned unchanged rather than guessed
- * at.
+ * Two rules shape the whole thing.
+ *
+ * It PROPOSES, never writes. This is paid content. A model that renames "Video 3" to
+ * something plausible-but-wrong is worse than the placeholder, because the placeholder at
+ * least admits it knows nothing — and a quiz that marks a right answer wrong destroys
+ * trust in everything else on the platform.
+ *
+ * And it is aimed at UNDERSTANDING. A description that says "Runs in Colab" is a label; a
+ * useful one says what you are about to do and why it comes here. A question that asks
+ * what an acronym stands for tests nothing; a useful one asks what breaks if you get the
+ * decision wrong. The prompt below is mostly an argument about that distinction.
  */
 
-export const config = { maxDuration: 120 };
+export const config = { maxDuration: 300 };
 
-/**
- * Only the items being CHANGED come back.
- *
- * The first version asked for an entry per module and per capsule — 28 for the AI
- * Bootcamp, 76 for ADAS. That output overran the token ceiling, the JSON truncated
- * mid-object, and Groq's strict validation rejected the whole response
- * (json_validate_failed). Returning only the changes cuts the output several-fold and
- * removes the failure mode entirely: anything absent is simply left alone, which is
- * also the behaviour we want by default.
- */
-const SUGGESTIONS_SCHEMA = {
+type Action = 'titles' | 'overviews' | 'quizzes' | 'structure';
+
+const SCHEMA = {
   type: 'object',
   properties: {
     changes: {
       type: 'array',
-      description: 'ONLY items you are changing. Omit anything you would leave as it is.',
+      description: 'Renamed / re-described modules and lessons. Omit anything you would leave alone.',
       items: {
         type: 'object',
         properties: {
           kind: { type: 'string', enum: ['module', 'capsule'] },
-          id: { type: 'string', description: 'The id, copied exactly from the input.' },
+          id: { type: 'string' },
           title: { type: 'string' },
           description: {
             type: 'string',
-            description: 'One line on what this covers. Empty string if you cannot say.',
+            description:
+              'Two sentences. What this is, and why it comes HERE — what it builds on, or what it sets up.',
           },
-          reason: { type: 'string', description: 'Short: the evidence for this change.' },
+          reason: { type: 'string' },
         },
         required: ['kind', 'id', 'title', 'description', 'reason'],
         additionalProperties: false,
@@ -53,68 +51,133 @@ const SUGGESTIONS_SCHEMA = {
     },
     overviews: {
       type: 'array',
-      description:
-        'A short "what this module covers" lesson, one per module that would benefit. ' +
-        'Omit a module that already has one, or whose contents you cannot identify.',
+      description: 'A "what this module covers" lesson, for modules that have none.',
       items: {
         type: 'object',
         properties: {
-          module_id: { type: 'string', description: 'The module id, copied exactly.' },
-          title: {
-            type: 'string',
-            description: 'e.g. "What this module covers". Short.',
-          },
+          module_id: { type: 'string' },
+          title: { type: 'string' },
           body: {
             type: 'string',
             description:
-              'Markdown, 100-180 words. What the module covers, why it matters, and what ' +
-              'each lesson in it does. Use a bulleted list for the lessons. Reference only ' +
-              'lessons that actually exist in the module.',
+              'Markdown, 120-200 words. What the module covers, why it matters, what each lesson does, ' +
+              'and — crucially — how it follows from the module before it and sets up the one after.',
           },
         },
         required: ['module_id', 'title', 'body'],
         additionalProperties: false,
       },
     },
+    quizzes: {
+      type: 'array',
+      description: 'Questions for lessons whose subject you can actually identify. 3-5 per lesson.',
+      items: {
+        type: 'object',
+        properties: {
+          capsule_id: { type: 'string' },
+          questions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                type: { type: 'string', enum: ['mcq', 'true_false'] },
+                question: { type: 'string' },
+                options: {
+                  type: 'array',
+                  description: 'Exactly 4 options for mcq. EMPTY array for true_false.',
+                  items: { type: 'string' },
+                },
+                correct: {
+                  type: 'string',
+                  description:
+                    'For mcq: "a", "b", "c" or "d" — the index into options. For true_false: "true" or "false".',
+                },
+                explanation: {
+                  type: 'string',
+                  description:
+                    'Teach here. Say WHY the answer is right and why the tempting wrong one is wrong. ' +
+                    'This is the part the learner actually remembers.',
+                },
+              },
+              required: ['type', 'question', 'options', 'correct', 'explanation'],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ['capsule_id', 'questions'],
+        additionalProperties: false,
+      },
+    },
+    splits: {
+      type: 'array',
+      description:
+        'Lessons that bundle several separate pieces of work and should become several lessons. ' +
+        'Do NOT split one project that merely has several artifacts (a notebook + its repo + its slides).',
+      items: {
+        type: 'object',
+        properties: {
+          capsule_id: { type: 'string' },
+          lessons: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                description: { type: 'string' },
+                item_titles: {
+                  type: 'array',
+                  description: 'The content items this lesson takes, by their EXACT titles from the input.',
+                  items: { type: 'string' },
+                },
+              },
+              required: ['title', 'description', 'item_titles'],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ['capsule_id', 'lessons'],
+        additionalProperties: false,
+      },
+    },
     skipped: {
       type: 'string',
-      description:
-        'One sentence on what you deliberately left alone and why. Empty if nothing.',
+      description: 'One sentence on what you deliberately left alone, and why.',
     },
   },
-  required: ['changes', 'overviews', 'skipped'],
+  required: ['changes', 'overviews', 'quizzes', 'splits', 'skipped'],
   additionalProperties: false,
 };
 
-interface Change {
-  kind: 'module' | 'capsule';
-  id: string;
-  title: string;
-  description: string;
-  reason: string;
-}
+interface Change { kind: 'module' | 'capsule'; id: string; title: string; description: string; reason: string }
+interface Overview { module_id: string; title: string; body: string }
+interface Question { type: 'mcq' | 'true_false'; question: string; options: string[]; correct: string; explanation: string }
+interface QuizProposal { capsule_id: string; questions: Question[] }
+interface SplitLesson { title: string; description: string; item_titles: string[] }
+interface Split { capsule_id: string; lessons: SplitLesson[] }
 
-interface Overview {
-  module_id: string;
-  title: string;
-  body: string;
-}
+const SYSTEM = `You improve a paid engineering course on autonomous driving and applied AI. Your job is to make a learner UNDERSTAND and REMEMBER the material — not to decorate it.
 
-const SYSTEM = `You improve the titles and descriptions of lessons in a paid engineering course on autonomous driving and applied AI.
+THE ONE RULE THAT OVERRIDES EVERYTHING: never invent what a lesson contains.
 
-The single rule that matters: NEVER INVENT WHAT A LESSON CONTAINS.
+For each lesson you are shown the titles of the files and links actually inside it. That is your evidence. A lesson called "Video 3" holding a file called "Support Vector Machines" is a lesson about SVMs — rename it. A lesson called "Video 6" holding a file called only "Lecture" tells you nothing — leave it alone and say so. Where you cannot identify the subject, you write no quiz for it. A confidently wrong question on a paid course destroys the learner's trust in everything else here.
 
-You will see, for each lesson, the titles of the files and links actually inside it. That is your evidence. A lesson called "Video 3" containing a file titled "Support Vector Machines" is a lesson about support vector machines — rename it. A lesson called "Video 6" containing a file titled only "Lecture" tells you nothing — leave it alone and set changed=false.
+WHAT MAKES EACH THING GOOD:
 
-- Prefer the evidence over your own knowledge of what a module "should" cover.
-- A lesson holding many files is a collection of materials. Name it for the collection, not for the first file in it.
-- Descriptions must describe what is actually in the lesson. If you do not know, return an empty description rather than a guess.
-- Write plainly, for a working engineer. No marketing language.
-- If a title is already good, do not return it at all.
+Titles: say what the lesson IS. Never a placeholder, never a format ("Video 2").
 
-You also write a short OVERVIEW lesson for each module: what the module covers, why it matters to someone building these systems, and what each lesson in it does. This is grounded work, not filler — you are summarising lessons whose titles you can see. Walk the reader from where the previous module left off into this one, so the course reads as a sequence rather than a pile. Only describe lessons that actually exist in that module. If a module's contents are opaque to you, write no overview for it.
+Descriptions: two sentences. The first says what the learner is about to do. The second — the one that earns its place — says why it comes HERE: what it builds on, what it sets up, or what breaks without it. "Runs in Colab" is a label, not a description; the learner can see the icon.
 
-Return ONLY the items you are changing. Anything you omit is left exactly as it is, which is the right outcome whenever you are unsure. Half the value here is what you decline to touch — and you say what you skipped, so a human can go and look.`;
+Module overviews: what the module covers, why it matters to someone building these systems, what each lesson in it does, and explicitly how it follows from the module before and sets up the one after. The course should read as an argument, not a playlist.
+
+Quiz questions: test understanding, not recall.
+  - BAD: "What does SVM stand for?" — tests nothing.
+  - GOOD: "What does an SVM actually maximise?" — tests whether they know it is the margin.
+  - BETTER: "For an AEB classifier, which error is worse — a false positive or a false negative?" — tests whether they understand that one is a rear-ending and the other is a collision.
+  Ask about a decision the learner had to make, a trade-off, or what breaks if they get it wrong. The EXPLANATION is where the teaching happens: say why the right answer is right AND why the tempting wrong one is wrong. That is the sentence they will remember.
+
+Splits: a lesson holding six separate notebooks is six lessons — one "Mark as Complete" button across six pieces of work gives the learner no signal about where they are. But a lesson holding one project's notebook, its repo and its slides is ONE lesson with three artifacts. Splitting that would be worse. The test is: is each item a separate piece of WORK, or a different view of the same work?
+
+Half your value is in what you decline to touch. Say what you skipped.`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -123,9 +186,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!authHeader) return res.status(401).json({ error: 'Not authenticated' });
 
   const asCaller = supabaseAsCaller(authHeader);
-  const {
-    data: { user },
-  } = await asCaller.auth.getUser();
+  const { data: { user } } = await asCaller.auth.getUser();
   if (!user) return res.status(401).json({ error: 'Not authenticated' });
 
   const { data: roles } = await asCaller.from('user_roles').select('role').eq('user_id', user.id);
@@ -137,19 +198,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     course_id: courseId,
     context,
     module_ids: moduleIds,
+    actions = ['titles', 'overviews'],
   } = (req.body ?? {}) as {
     course_id?: string;
     context?: string;
-    /**
-     * Restrict the run to these modules.
-     *
-     * Groq's free tier caps a request at 8000 tokens/min, counting input plus the
-     * completion reservation. A 13-module, 63-lesson course does not fit, so the client
-     * walks the course a few modules at a time. Absent, the whole course is attempted —
-     * which is fine for the smaller ones.
-     */
     module_ids?: string[];
+    actions?: Action[];
   };
+
   if (!courseId) return res.status(400).json({ error: 'course_id is required' });
 
   try {
@@ -158,32 +214,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .select('title, tagline, description, syllabus')
       .eq('id', courseId)
       .maybeSingle();
-
     if (!course) return res.status(404).json({ error: 'Course not found' });
 
     let query = asCaller
       .from('learning_paths')
       .select('id, title, description, order_index, capsules(id, title, description, order_index)')
       .eq('course_id', courseId);
-
     if (moduleIds?.length) query = query.in('id', moduleIds);
 
     const { data: modules } = await query.order('order_index');
+    if (!modules?.length) return res.status(400).json({ error: 'This course has no modules yet.' });
 
-    if (!modules?.length) {
-      return res.status(400).json({ error: 'This course has no modules yet.' });
-    }
+    const capsuleIds = modules.flatMap((m) => (m.capsules ?? []).map((c: { id: string }) => c.id));
 
-    // The content items are the evidence. Without them the model is guessing, so this
-    // is the most important part of the prompt.
-    const capsuleIds = modules.flatMap((m) =>
-      (m.capsules ?? []).map((c: { id: string }) => c.id)
+    const [{ data: contents }, { data: existingQuizzes }] = await Promise.all([
+      asCaller
+        .from('capsule_content')
+        .select('capsule_id, title, content_type')
+        .in('capsule_id', capsuleIds),
+      asCaller.from('quizzes').select('capsule_id').in('capsule_id', capsuleIds),
+    ]);
+
+    const quizzed = new Set(
+      (existingQuizzes ?? []).map((q: { capsule_id: string | null }) => q.capsule_id)
     );
-
-    const { data: contents } = await asCaller
-      .from('capsule_content')
-      .select('capsule_id, title, content_type, description')
-      .in('capsule_id', capsuleIds);
 
     const byCapsule = new Map<string, { title: string | null; content_type: string }[]>();
     for (const item of contents ?? []) {
@@ -192,133 +246,141 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       byCapsule.set(item.capsule_id, list);
     }
 
-    const s = (course.syllabus ?? {}) as { outcomes?: string[] };
-
     const structureText = modules
       .map((m) => {
-        const capsules = ((m.capsules ?? []) as {
-          id: string;
-          title: string;
-          description: string | null;
-          order_index: number;
+        const caps = ((m.capsules ?? []) as {
+          id: string; title: string; description: string | null; order_index: number;
         }[])
           .sort((a, b) => a.order_index - b.order_index)
           .map((c) => {
             const items = byCapsule.get(c.id) ?? [];
             const evidence = items.length
-              ? items
-                  .map((i) => `${i.content_type}: "${i.title ?? '(untitled)'}"`)
-                  .join(', ')
-              : 'NO CONTENT — you have no evidence, leave unchanged';
+              ? items.map((i) => `${i.content_type} "${i.title ?? '(untitled)'}"`).join(', ')
+              : 'NOTHING — no evidence, leave alone';
             return (
               `  - capsule id=${c.id}\n` +
-              `    current title: "${c.title}"\n` +
-              `    current description: ${c.description ? `"${c.description}"` : '(none)'}\n` +
-              `    CONTAINS (${items.length} item${items.length === 1 ? '' : 's'}): ${evidence}`
+              `    title: "${c.title}"\n` +
+              `    description: ${c.description ? `"${c.description}"` : '(none)'}\n` +
+              `    has a quiz already: ${quizzed.has(c.id) ? 'YES — write none' : 'no'}\n` +
+              `    CONTAINS: ${evidence}`
             );
           })
           .join('\n');
-
-        return (
-          `MODULE id=${m.id}\n` +
-          `  current title: "${m.title}"\n` +
-          `  current description: ${m.description ? `"${m.description}"` : '(none)'}\n` +
-          capsules
-        );
+        return `MODULE id=${m.id}\n  title: "${m.title}"\n${caps}`;
       })
       .join('\n\n');
 
-    // A module that already opens with an overview must not get a second one.
     const hasOverview = new Set(
       modules
         .filter((m) =>
           ((m.capsules ?? []) as { title: string }[]).some((c) =>
-            /^(overview|what this module covers|about this module|introduction)/i.test(
-              c.title.trim()
-            )
+            /^(what this module covers|overview|start here|introduction)/i.test(c.title.trim())
           )
         )
         .map((m) => m.id)
     );
 
-    // Size the completion reservation to the work in front of us.
-    //
-    // Groq's tokens-per-minute budget charges input + max_completion_tokens together,
-    // so a fixed 6000 was self-defeating: it left under 2000 for the prompt and the
-    // pre-flight guard rejected the AI course before Groq ever saw it. A rename is
-    // ~50 tokens and an overview ~300, so budget for the batch actually being sent and
-    // leave the rest of the window for the evidence.
+    const want = new Set<Action>(actions);
+    const asks: string[] = [];
+    if (want.has('titles')) asks.push('- TITLES AND DESCRIPTIONS: rename what the evidence lets you rename, and write a two-sentence description for every lesson.');
+    if (want.has('overviews')) asks.push('- MODULE OVERVIEWS: for the modules that do not have one.');
+    if (want.has('quizzes')) asks.push('- QUIZZES: 3-5 questions for each lesson whose subject you can identify AND that has no quiz already.');
+    if (want.has('structure')) asks.push('- SPLITS: lessons that bundle separate pieces of work.');
+
+    // Size the reservation to what was actually asked for; the TPM budget charges input
+    // plus this together, so an over-generous number gets the whole request rejected.
+    const perCapsule =
+      (want.has('titles') ? 70 : 0) +
+      (want.has('quizzes') ? 320 : 0) +
+      (want.has('structure') ? 40 : 0);
     const maxTokens = Math.min(
-      4500,
-      800 + capsuleIds.length * 60 + modules.length * 320
+      5000,
+      600 + capsuleIds.length * perCapsule + modules.length * (want.has('overviews') ? 340 : 0)
     );
 
+    const s = (course.syllabus ?? {}) as { outcomes?: string[] };
+
     const result = await structured<{
-      changes: Change[];
-      overviews: Overview[];
-      skipped: string;
+      changes: Change[]; overviews: Overview[]; quizzes: QuizProposal[]; splits: Split[]; skipped: string;
     }>(groq(), {
       system: SYSTEM,
-      schemaName: 'course_suggestions',
-      schema: SUGGESTIONS_SCHEMA,
+      schemaName: 'course_improvements',
+      schema: SCHEMA,
       maxTokens,
       prompt:
         `COURSE: ${course.title}\n` +
         (course.tagline ? `${course.tagline}\n` : '') +
-        (course.description ? `${course.description}\n` : '') +
         (s.outcomes?.length ? `Covers: ${s.outcomes.join('; ')}\n` : '') +
         (context?.trim()
-          ? `\nCONTEXT FROM THE COURSE AUTHOR (treat as authoritative):\n${context.trim()}\n`
-          : '\n(The author gave no extra context. Rely on the evidence below.)\n') +
-        `\nSTRUCTURE AND EVIDENCE\n${structureText}\n\n` +
+          ? `\nCONTEXT FROM THE COURSE AUTHOR — treat as authoritative:\n${context.trim()}\n`
+          : '\n(No extra context. Rely entirely on the evidence below.)\n') +
+        `\nWHAT TO PRODUCE:\n${asks.join('\n')}\n` +
+        `Return EMPTY arrays for anything not asked for.\n` +
         (hasOverview.size
-          ? `These modules ALREADY have an overview lesson — write no overview for them: ` +
-            `${[...hasOverview].join(', ')}\n\n`
+          ? `\nThese modules already have an overview — write none for them: ${[...hasOverview].join(', ')}\n`
           : '') +
-        `Return ONLY the modules and capsules you are changing, with ids copied exactly ` +
-        `as given. Omit everything you would leave alone — do not invent a subject for a ` +
-        `lesson whose contents you cannot identify from the evidence above. Then write an ` +
-        `overview lesson for each module whose lessons you can actually see.`,
+        `\nSTRUCTURE AND EVIDENCE\n${structureText}\n\n` +
+        `Copy every id exactly as given. Omit anything you would leave unchanged. Do not ` +
+        `invent a subject for a lesson whose contents you cannot identify from the evidence.`,
     });
 
-    // Every id must exist, or "apply" would write to (or hang content off) the wrong
-    // row. The model copies them from the prompt, so a mismatch means it invented one.
-    //
-    // The shape is also checked field by field, not assumed: the strict-schema fallback
-    // in structured() means a response may not have been constrained to the schema, so
-    // a malformed entry is possible and must be dropped rather than trusted.
+    // Nothing is trusted that has not been checked. The strict-schema fallback in
+    // structured() means the response may not have been constrained at all, and an id the
+    // model invented must never be written to.
     const validModules = new Set(modules.map((m) => m.id));
     const validCapsules = new Set(capsuleIds);
+    const ok = (v: unknown) => typeof v === 'string' && v.trim().length > 0;
 
     const changes = (Array.isArray(result.changes) ? result.changes : []).filter(
       (c): c is Change =>
-        !!c &&
-        typeof c.id === 'string' &&
-        typeof c.title === 'string' &&
-        c.title.trim().length > 0 &&
+        !!c && ok(c.id) && ok(c.title) &&
         (c.kind === 'module' ? validModules.has(c.id) : validCapsules.has(c.id))
     );
 
     const overviews = (Array.isArray(result.overviews) ? result.overviews : []).filter(
       (o): o is Overview =>
-        !!o &&
-        typeof o.module_id === 'string' &&
-        typeof o.title === 'string' &&
-        typeof o.body === 'string' &&
-        o.body.trim().length > 0 &&
-        validModules.has(o.module_id) &&
-        !hasOverview.has(o.module_id)
+        !!o && ok(o.module_id) && ok(o.title) && ok(o.body) &&
+        validModules.has(o.module_id) && !hasOverview.has(o.module_id)
     );
 
+    const quizzes = (Array.isArray(result.quizzes) ? result.quizzes : [])
+      .filter((q): q is QuizProposal => !!q && validCapsules.has(q.capsule_id) && !quizzed.has(q.capsule_id))
+      .map((q) => ({
+        ...q,
+        questions: (q.questions ?? []).filter(
+          (x) =>
+            ok(x.question) && ok(x.explanation) &&
+            (x.type === 'true_false'
+              ? x.correct === 'true' || x.correct === 'false'
+              : Array.isArray(x.options) &&
+                x.options.length === 4 &&
+                ['a', 'b', 'c', 'd'].includes(x.correct))
+        ),
+      }))
+      // A one-question quiz is a coin-flip, not an assessment.
+      .filter((q) => q.questions.length >= 3);
+
+    const splits = (Array.isArray(result.splits) ? result.splits : [])
+      .filter((sp): sp is Split => !!sp && validCapsules.has(sp.capsule_id) && Array.isArray(sp.lessons))
+      .map((sp) => {
+        const items = (byCapsule.get(sp.capsule_id) ?? []).map((i) => i.title ?? '');
+        return {
+          ...sp,
+          lessons: sp.lessons.filter(
+            (l) => ok(l.title) && Array.isArray(l.item_titles) && l.item_titles.every((t) => items.includes(t))
+          ),
+        };
+      })
+      // A split that loses a content item is worse than no split. Drop any that does not
+      // account for every single item in the capsule.
+      .filter((sp) => {
+        const items = byCapsule.get(sp.capsule_id) ?? [];
+        const claimed = sp.lessons.flatMap((l) => l.item_titles);
+        return sp.lessons.length > 1 && claimed.length === items.length;
+      });
+
     return res.status(200).json({
-      ok: true,
-      changes,
-      overviews,
-      skipped: result.skipped ?? '',
-      dropped:
-        (result.changes?.length ?? 0) -
-        changes.length +
-        ((result.overviews?.length ?? 0) - overviews.length),
+      ok: true, changes, overviews, quizzes, splits, skipped: result.skipped ?? '',
     });
   } catch (error) {
     console.error('improve-course failed:', error);

@@ -13,21 +13,23 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowRight, FileText, Loader2, Sparkles } from 'lucide-react';
-import { persistOrder } from '@/lib/reorder';
+import { ArrowRight, FileText, HelpCircle, Loader2, Scissors, Sparkles } from 'lucide-react';
 
 /**
- * Proposes improved titles and descriptions for a course's modules and capsules.
+ * The course improvement agent, from the admin side.
  *
- * Every suggestion is reviewed before anything is written. This is paid content: a
- * model that renames "Video 3" to something plausible but wrong is worse than the
- * placeholder, because the placeholder at least admits it knows nothing.
+ * It can do everything that has been done by hand: rename lessons from the evidence inside
+ * them, write the description that opens a lesson, write a module overview, write quiz
+ * questions, and split a bundled lesson into the separate pieces of work it contains.
  *
- * The agent is grounded in the content items actually inside each capsule — "Video 3"
- * holding a file titled "Support Vector Machines" is evidence — so most suggestions
- * are recovered fact rather than invention. Where there is no evidence, it is
- * instructed to leave the capsule alone, and those come back marked unchanged.
+ * It PROPOSES; you accept. Nothing is written to a paid course without a human looking at
+ * it — a plausible-but-wrong rename is worse than the placeholder it replaces, and a quiz
+ * that marks a right answer wrong destroys trust in everything else on the platform.
+ *
+ * Quizzes it writes are created UNPUBLISHED, even once accepted.
  */
+
+type Action = 'titles' | 'overviews' | 'quizzes' | 'structure';
 
 interface Change {
   kind: 'module' | 'capsule';
@@ -35,17 +37,61 @@ interface Change {
   title: string;
   description: string;
   reason: string;
-  /** Filled in client-side so the diff can show what it is replacing. */
   currentTitle?: string;
 }
-
-/** A new "what this module covers" lesson, to be created at the top of the module. */
 interface Overview {
   module_id: string;
   title: string;
   body: string;
   moduleTitle?: string;
 }
+interface Question {
+  type: 'mcq' | 'true_false';
+  question: string;
+  options: string[];
+  correct: string;
+  explanation: string;
+}
+interface QuizProposal {
+  capsule_id: string;
+  questions: Question[];
+  capsuleTitle?: string;
+}
+interface SplitLesson {
+  title: string;
+  description: string;
+  item_titles: string[];
+}
+interface Split {
+  capsule_id: string;
+  lessons: SplitLesson[];
+  capsuleTitle?: string;
+}
+
+const ACTIONS: { key: Action; label: string; hint: string }[] = [
+  {
+    key: 'titles',
+    label: 'Titles & descriptions',
+    hint: 'Rename from the evidence, and open every lesson with what it is and why it comes here.',
+  },
+  {
+    key: 'overviews',
+    label: 'Module overviews',
+    hint: 'A "what this module covers" lesson, showing how each module follows from the last.',
+  },
+  {
+    key: 'quizzes',
+    label: 'Quizzes',
+    hint: 'Questions that test understanding, not recall. Created unpublished.',
+  },
+  {
+    key: 'structure',
+    label: 'Split bundled lessons',
+    hint: 'Six notebooks behind one "Mark as Complete" become six lessons.',
+  },
+];
+
+const KEYS = ['a', 'b', 'c', 'd'];
 
 export default function CourseAssistant({
   courseId,
@@ -62,23 +108,48 @@ export default function CourseAssistant({
 }) {
   const { toast } = useToast();
   const [context, setContext] = useState('');
+  const [actions, setActions] = useState<Set<Action>>(new Set<Action>(['titles', 'overviews']));
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState('');
   const [applying, setApplying] = useState(false);
+
   const [changes, setChanges] = useState<Change[] | null>(null);
   const [overviews, setOverviews] = useState<Overview[]>([]);
+  const [quizzes, setQuizzes] = useState<QuizProposal[]>([]);
+  const [splits, setSplits] = useState<Split[]>([]);
   const [skipped, setSkipped] = useState('');
   const [accepted, setAccepted] = useState<Set<string>>(new Set());
 
-  const toggle = (id: string) => {
+  const toggle = (id: string) =>
     setAccepted((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
+
+  const toggleAction = (a: Action) =>
+    setActions((prev) => {
+      const next = new Set(prev);
+      if (next.has(a)) next.delete(a);
+      else next.add(a);
+      return next;
+    });
+
+  const reset = () => {
+    setChanges(null);
+    setOverviews([]);
+    setQuizzes([]);
+    setSplits([]);
+    setSkipped('');
   };
 
   const run = async () => {
+    if (actions.size === 0) {
+      toast({ title: 'Pick at least one thing to improve', variant: 'destructive' });
+      return;
+    }
+
     setRunning(true);
     setProgress('');
     try {
@@ -87,27 +158,24 @@ export default function CourseAssistant({
       } = await supabase.auth.getSession();
       if (!session) throw new Error('Your session expired. Sign in again.');
 
-      // Groq's free tier allows 8000 tokens/min, counting input plus the completion
-      // reservation together. A 13-module, 63-lesson course does not fit in one
-      // request, so walk it a few modules at a time. Small courses take one pass.
       const { data: allModules } = await supabase
         .from('learning_paths')
         .select('id, title, capsules(id)')
         .eq('course_id', courseId)
         .order('order_index');
-
       if (!allModules?.length) throw new Error('This course has no modules yet.');
 
-      // Batch by lesson count, not module count: one 20-lesson module is a bigger
-      // prompt than four 2-lesson ones.
-      const LESSONS_PER_BATCH = 14;
+      // Groq allows 8000 tokens/min, counting input plus the completion reservation
+      // together, so a large course cannot go in one request. Walk it in batches — and
+      // batch by LESSON count, because one 20-lesson module is a far bigger prompt than
+      // four 2-lesson ones. Quizzes produce much more output, so those batches shrink.
+      const perBatch = actions.has('quizzes') ? 6 : 14;
       const batches: string[][] = [];
       let batch: string[] = [];
       let lessons = 0;
-
       for (const m of allModules) {
         const n = (m.capsules ?? []).length || 1;
-        if (batch.length && lessons + n > LESSONS_PER_BATCH) {
+        if (batch.length && lessons + n > perBatch) {
           batches.push(batch);
           batch = [];
           lessons = 0;
@@ -117,13 +185,17 @@ export default function CourseAssistant({
       }
       if (batch.length) batches.push(batch);
 
-      const allChanges: Change[] = [];
-      const allOverviews: Overview[] = [];
-      const notes: string[] = [];
+      const acc = {
+        changes: [] as Change[],
+        overviews: [] as Overview[],
+        quizzes: [] as QuizProposal[],
+        splits: [] as Split[],
+        notes: [] as string[],
+      };
 
       for (let i = 0; i < batches.length; i++) {
         setProgress(
-          batches.length > 1 ? `Reading modules ${i + 1} of ${batches.length}...` : 'Reading the course...'
+          batches.length > 1 ? `Reading ${i + 1} of ${batches.length}...` : 'Reading the course...'
         );
 
         let attempt = 0;
@@ -134,70 +206,67 @@ export default function CourseAssistant({
               'Content-Type': 'application/json',
               Authorization: `Bearer ${session.access_token}`,
             },
-            body: JSON.stringify({ course_id: courseId, context, module_ids: batches[i] }),
+            body: JSON.stringify({
+              course_id: courseId,
+              context,
+              module_ids: batches[i],
+              actions: [...actions],
+            }),
           });
-
           const data = await response.json().catch(() => ({}));
 
           if (response.ok && data?.ok !== false) {
-            allChanges.push(...(data.changes ?? []));
-            allOverviews.push(...(data.overviews ?? []));
-            if (data.skipped) notes.push(data.skipped);
+            acc.changes.push(...(data.changes ?? []));
+            acc.overviews.push(...(data.overviews ?? []));
+            acc.quizzes.push(...(data.quizzes ?? []));
+            acc.splits.push(...(data.splits ?? []));
+            if (data.skipped) acc.notes.push(data.skipped);
             break;
           }
 
-          // Tokens-per-minute is a rolling budget, so the cure is simply to wait.
-          const rateLimited = /rate_limit|429|tokens per minute/i.test(
-            String(data?.error ?? '')
-          );
-
+          // Tokens-per-minute is a rolling budget; the cure is simply to wait it out.
+          const rateLimited = /rate_limit|429|tokens per minute/i.test(String(data?.error ?? ''));
           if (rateLimited && attempt < 2) {
             attempt += 1;
-            setProgress(`Rate limit reached — waiting 60s (batch ${i + 1}/${batches.length})...`);
+            setProgress(`Rate limit — waiting 60s (${i + 1}/${batches.length})...`);
             await new Promise((r) => setTimeout(r, 60_000));
             continue;
           }
-
           throw new Error(data?.error ?? `Failed (${response.status})`);
         }
       }
 
-      // Look up what each suggestion is replacing, so the reviewer sees a real diff
-      // rather than a list of assertions.
+      // Look up what each proposal replaces, so the reviewer sees a real diff.
       const [{ data: mods }, { data: caps }] = await Promise.all([
         supabase.from('learning_paths').select('id, title').eq('course_id', courseId),
         supabase.from('capsules').select('id, title'),
       ]);
-      const currentTitle = new Map<string, string>([
+      const nameOf = new Map<string, string>([
         ...(mods ?? []).map((m) => [m.id, m.title] as const),
         ...(caps ?? []).map((c) => [c.id, c.title] as const),
       ]);
 
-      const received: Change[] = allChanges.map((c) => ({
-        ...c,
-        currentTitle: currentTitle.get(c.id),
-      }));
+      setChanges(acc.changes.map((c) => ({ ...c, currentTitle: nameOf.get(c.id) })));
+      setOverviews(acc.overviews.map((o) => ({ ...o, moduleTitle: nameOf.get(o.module_id) })));
+      setQuizzes(acc.quizzes.map((q) => ({ ...q, capsuleTitle: nameOf.get(q.capsule_id) })));
+      setSplits(acc.splits.map((s) => ({ ...s, capsuleTitle: nameOf.get(s.capsule_id) })));
+      setSkipped(acc.notes.join(' '));
 
-      const receivedOverviews: Overview[] = allOverviews.map((o) => ({
-        ...o,
-        moduleTitle: currentTitle.get(o.module_id),
-      }));
-
-      setChanges(received);
-      setOverviews(receivedOverviews);
-      setSkipped(notes.join(' '));
-      // Pre-ticked: the point is to review a diff, not to click 40 checkboxes.
       setAccepted(
         new Set([
-          ...received.map((c) => c.id),
-          ...receivedOverviews.map((o) => `overview:${o.module_id}`),
+          ...acc.changes.map((c) => c.id),
+          ...acc.overviews.map((o) => `ov:${o.module_id}`),
+          ...acc.quizzes.map((q) => `qz:${q.capsule_id}`),
+          ...acc.splits.map((s) => `sp:${s.capsule_id}`),
         ])
       );
 
-      if (received.length + receivedOverviews.length === 0) {
+      const total =
+        acc.changes.length + acc.overviews.length + acc.quizzes.length + acc.splits.length;
+      if (total === 0) {
         toast({
           title: 'Nothing to change',
-          description: 'The agent found no lesson it could improve from the evidence.',
+          description: 'Nothing here could be improved from the evidence available.',
         });
       }
     } catch (error: any) {
@@ -214,9 +283,7 @@ export default function CourseAssistant({
   const apply = async () => {
     setApplying(true);
     try {
-      const chosen = (changes ?? []).filter((c) => accepted.has(c.id));
-
-      for (const c of chosen) {
+      for (const c of (changes ?? []).filter((x) => accepted.has(x.id))) {
         const { error } = await supabase
           .from(c.kind === 'module' ? 'learning_paths' : 'capsules')
           .update({ title: c.title, description: c.description || null })
@@ -224,14 +291,14 @@ export default function CourseAssistant({
         if (error) throw error;
       }
 
-      // Create the overview lessons: a capsule plus a single text content item, placed
-      // FIRST in the module — an overview after the lessons it describes is pointless.
-      const chosenOverviews = overviews.filter((o) =>
-        accepted.has(`overview:${o.module_id}`)
-      );
+      for (const o of overviews.filter((x) => accepted.has(`ov:${x.module_id}`))) {
+        const { data: siblings } = await supabase
+          .from('capsules')
+          .select('id, order_index')
+          .eq('learning_path_id', o.module_id)
+          .order('order_index');
 
-      for (const o of chosenOverviews) {
-        const { data: capsule, error: capsuleError } = await supabase
+        const { data: cap, error } = await supabase
           .from('capsules')
           .insert({
             learning_path_id: o.module_id,
@@ -241,43 +308,133 @@ export default function CourseAssistant({
           })
           .select('id')
           .single();
+        if (error) throw error;
 
-        if (capsuleError) throw capsuleError;
-
-        const { error: contentError } = await supabase.from('capsule_content').insert({
-          capsule_id: capsule.id,
+        await supabase.from('capsule_content').insert({
+          capsule_id: cap.id,
           content_type: 'text',
           title: o.title,
           content_value: o.body,
           order_index: 0,
         });
 
-        if (contentError) throw contentError;
-
-        // Everything else shifts down by one, so the overview actually leads.
-        const { data: siblings } = await supabase
-          .from('capsules')
-          .select('id, order_index')
-          .eq('learning_path_id', o.module_id)
-          .order('order_index');
-
-        const ordered = [
-          capsule.id,
-          ...(siblings ?? []).filter((c) => c.id !== capsule.id).map((c) => c.id),
-        ];
-        await persistOrder('capsules', ordered);
+        // An overview placed after the lessons it describes would be pointless.
+        const ordered = [cap.id, ...(siblings ?? []).map((s) => s.id)];
+        for (let i = 0; i < ordered.length; i++) {
+          await supabase.from('capsules').update({ order_index: i }).eq('id', ordered[i]);
+        }
       }
 
-      const mods = chosen.filter((c) => c.kind === 'module').length;
+      for (const q of quizzes.filter((x) => accepted.has(`qz:${x.capsule_id}`))) {
+        const { data: quiz, error } = await supabase
+          .from('quizzes')
+          .insert({
+            course_id: courseId,
+            capsule_id: q.capsule_id,
+            title: `${q.capsuleTitle ?? 'Lesson'} — Check yourself`,
+            quiz_type: 'quiz',
+            is_graded: false,
+            passing_score: 70,
+            max_attempts: 3,
+            order_index: 0,
+            // Even once accepted, a quiz waits for an explicit publish.
+            is_published: false,
+          })
+          .select('id')
+          .single();
+        if (error) throw error;
+
+        await supabase.from('quiz_questions').insert(
+          q.questions.map((x, i) => ({
+            quiz_id: quiz.id,
+            question_type: x.type,
+            question_text: x.question,
+            // Quiz.tsx reads mcq options as a key->label object and grades with
+            // `userAnswer === correct_answer`, where userAnswer is the option KEY.
+            options:
+              x.type === 'mcq'
+                ? Object.fromEntries(x.options.map((o, j) => [KEYS[j], o]))
+                : null,
+            correct_answer: x.correct,
+            explanation: x.explanation,
+            points: 1,
+            order_index: i,
+          }))
+        );
+      }
+
+      for (const s of splits.filter((x) => accepted.has(`sp:${x.capsule_id}`))) {
+        const { data: parent } = await supabase
+          .from('capsules')
+          .select('id, learning_path_id, order_index')
+          .eq('id', s.capsule_id)
+          .single();
+        const { data: items } = await supabase
+          .from('capsule_content')
+          .select('id, title')
+          .eq('capsule_id', s.capsule_id);
+        const { data: done } = await supabase
+          .from('progress')
+          .select('user_id')
+          .eq('capsule_id', s.capsule_id)
+          .eq('is_completed', true);
+
+        for (let i = 0; i < s.lessons.length; i++) {
+          const lesson = s.lessons[i];
+          let capsuleId = parent!.id;
+
+          if (i === 0) {
+            // Reuse the parent row, so its progress records survive untouched.
+            await supabase
+              .from('capsules')
+              .update({ title: lesson.title, description: lesson.description })
+              .eq('id', parent!.id);
+          } else {
+            const { data: created, error } = await supabase
+              .from('capsules')
+              .insert({
+                learning_path_id: parent!.learning_path_id,
+                title: lesson.title,
+                description: lesson.description,
+                order_index: parent!.order_index + i,
+              })
+              .select('id')
+              .single();
+            if (error) throw error;
+            capsuleId = created.id;
+
+            // They completed the bundle, so they have completed what came out of it.
+            if (done?.length) {
+              await supabase.from('progress').insert(
+                done.map((p) => ({
+                  user_id: p.user_id,
+                  capsule_id: capsuleId,
+                  is_completed: true,
+                  watch_percentage: 100,
+                  completed_at: new Date().toISOString(),
+                }))
+              );
+            }
+          }
+
+          for (let j = 0; j < lesson.item_titles.length; j++) {
+            const item = (items ?? []).find((x) => x.title === lesson.item_titles[j]);
+            if (item) {
+              await supabase
+                .from('capsule_content')
+                .update({ capsule_id: capsuleId, order_index: j })
+                .eq('id', item.id);
+            }
+          }
+        }
+      }
+
+      const n = accepted.size;
       toast({
         title: 'Applied',
-        description:
-          `${mods} module(s), ${chosen.length - mods} lesson(s) updated` +
-          (chosenOverviews.length ? `, ${chosenOverviews.length} overview(s) added.` : '.'),
+        description: `${n} change${n === 1 ? '' : 's'} written. Any new quizzes are unpublished.`,
       });
-
-      setChanges(null);
-      setOverviews([]);
+      reset();
       onApplied();
       onOpenChange(false);
     } catch (error: any) {
@@ -291,38 +448,33 @@ export default function CourseAssistant({
   };
 
   const hasResults = changes !== null;
-  const total = (changes?.length ?? 0) + overviews.length;
+  const total = (changes?.length ?? 0) + overviews.length + quizzes.length + splits.length;
   const allIds = () => [
     ...(changes ?? []).map((c) => c.id),
-    ...overviews.map((o) => `overview:${o.module_id}`),
+    ...overviews.map((o) => `ov:${o.module_id}`),
+    ...quizzes.map((q) => `qz:${q.capsule_id}`),
+    ...splits.map((s) => `sp:${s.capsule_id}`),
   ];
 
-  const Row = ({ c }: { c: Change }) => (
+  const Item = ({
+    id,
+    icon,
+    badge,
+    children,
+  }: {
+    id: string;
+    icon: React.ReactNode;
+    badge: string;
+    children: React.ReactNode;
+  }) => (
     <label className="flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/40">
-      <Checkbox
-        checked={accepted.has(c.id)}
-        onCheckedChange={() => toggle(c.id)}
-        className="mt-1"
-      />
+      <Checkbox checked={accepted.has(id)} onCheckedChange={() => toggle(id)} className="mt-1" />
       <div className="min-w-0 flex-1">
-        <Badge variant="outline" className="mb-1.5 text-xs">
-          {c.kind === 'module' ? 'Module' : 'Lesson'}
+        <Badge variant="outline" className="mb-1.5 gap-1 text-xs">
+          {icon}
+          {badge}
         </Badge>
-
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          {c.currentTitle && (
-            <span className="text-muted-foreground line-through">{c.currentTitle}</span>
-          )}
-          <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-          <span className="font-medium">{c.title}</span>
-        </div>
-
-        {c.description && (
-          <p className="mt-1.5 text-sm text-muted-foreground">{c.description}</p>
-        )}
-        {c.reason && (
-          <p className="mt-1 text-xs italic text-muted-foreground">Evidence: {c.reason}</p>
-        )}
+        {children}
       </div>
     </label>
   );
@@ -336,31 +488,52 @@ export default function CourseAssistant({
             Improve course content
           </DialogTitle>
           <DialogDescription>
-            Proposes better titles and descriptions for <strong>{courseTitle}</strong>. It
-            reads what is actually inside each lesson, so most suggestions recover a real
-            title rather than invent one. Nothing is written until you accept it.
+            <strong>{courseTitle}</strong>. It reads what is actually inside each lesson, so most
+            suggestions recover a real title rather than invent one. It proposes; nothing is
+            written until you accept it.
           </DialogDescription>
         </DialogHeader>
 
         {!hasResults ? (
           <div className="space-y-4 py-2">
             <div className="space-y-2">
+              <Label>What should it improve?</Label>
+              <div className="grid gap-2">
+                {ACTIONS.map((a) => (
+                  <label
+                    key={a.key}
+                    className="flex cursor-pointer gap-3 rounded-xl border p-3 hover:bg-muted/40"
+                  >
+                    <Checkbox
+                      checked={actions.has(a.key)}
+                      onCheckedChange={() => toggleAction(a.key)}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <p className="text-sm font-medium">{a.label}</p>
+                      <p className="text-xs text-muted-foreground">{a.hint}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="context">Context (optional, but it helps)</Label>
               <Textarea
                 id="context"
-                rows={7}
+                rows={5}
                 value={context}
                 onChange={(e) => setContext(e.target.value)}
                 placeholder={
-                  'Anything the lesson files do not say. For example:\n\n' +
+                  'Anything the lesson files cannot tell it. For example:\n\n' +
                   'Module 3 is the RL block — PPO on MetaDrive, not gym.\n' +
-                  '"Study Material" capsules are resource collections, not lessons.\n' +
-                  'The Colab notebooks are the assessed work.'
+                  'The Colab notebooks are the assessed work; the videos are optional.'
                 }
               />
               <p className="text-xs text-muted-foreground">
-                The agent is told to leave a lesson alone when it has no evidence for what
-                it contains — so it will not guess, and it will tell you what it skipped.
+                It is told to leave a lesson alone when it has no evidence for what that lesson
+                contains — so it will not guess, and it will tell you what it skipped.
               </p>
             </div>
 
@@ -384,8 +557,7 @@ export default function CourseAssistant({
               <div className="rounded-xl border border-dashed p-8 text-center">
                 <p className="font-medium">No changes proposed</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Nothing here could be improved from the evidence available. Add context
-                  above and try again.
+                  Nothing here could be improved from the evidence. Add context and try again.
                 </p>
               </div>
             ) : (
@@ -405,51 +577,118 @@ export default function CourseAssistant({
                   </Button>
                 </div>
 
-                <div className="space-y-2">
-                  {(changes ?? []).map((c) => (
-                    <Row key={c.id} c={c} />
-                  ))}
-                </div>
+                {(changes ?? []).map((c) => (
+                  <Item
+                    key={c.id}
+                    id={c.id}
+                    icon={<ArrowRight className="h-3 w-3" />}
+                    badge={c.kind === 'module' ? 'Module' : 'Lesson'}
+                  >
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      {c.currentTitle && (
+                        <span className="text-muted-foreground line-through">{c.currentTitle}</span>
+                      )}
+                      <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                      <span className="font-medium">{c.title}</span>
+                    </div>
+                    {c.description && (
+                      <p className="mt-1.5 text-sm text-muted-foreground">{c.description}</p>
+                    )}
+                    {c.reason && (
+                      <p className="mt-1 text-xs italic text-muted-foreground">Evidence: {c.reason}</p>
+                    )}
+                  </Item>
+                ))}
 
-                {overviews.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="pt-2 text-sm font-medium">
-                      New overview lessons ({overviews.length})
+                {overviews.map((o) => (
+                  <Item
+                    key={o.module_id}
+                    id={`ov:${o.module_id}`}
+                    icon={<FileText className="h-3 w-3" />}
+                    badge="New overview"
+                  >
+                    <p className="text-sm font-medium">
+                      {o.title}
+                      {o.moduleTitle && (
+                        <span className="font-normal text-muted-foreground">
+                          {' '}— leads {o.moduleTitle}
+                        </span>
+                      )}
                     </p>
-                    {overviews.map((o) => {
-                      const key = `overview:${o.module_id}`;
-                      return (
-                        <label
-                          key={key}
-                          className="flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/40"
-                        >
-                          <Checkbox
-                            checked={accepted.has(key)}
-                            onCheckedChange={() => toggle(key)}
-                            className="mt-1"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <Badge variant="outline" className="mb-1.5 gap-1 text-xs">
-                              <FileText className="h-3 w-3" />
-                              New lesson
-                            </Badge>
-                            <p className="text-sm font-medium">
-                              {o.title}
-                              {o.moduleTitle && (
-                                <span className="font-normal text-muted-foreground">
-                                  {' '}— first lesson in {o.moduleTitle}
-                                </span>
-                              )}
+                    <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+                      {o.body}
+                    </p>
+                  </Item>
+                ))}
+
+                {quizzes.map((q) => (
+                  <Item
+                    key={q.capsule_id}
+                    id={`qz:${q.capsule_id}`}
+                    icon={<HelpCircle className="h-3 w-3" />}
+                    badge={`Quiz — ${q.questions.length} questions`}
+                  >
+                    <p className="text-sm font-medium">{q.capsuleTitle}</p>
+                    <div className="mt-2 space-y-2">
+                      {q.questions.map((x, i) => (
+                        <div key={i} className="rounded-lg bg-muted/50 p-2.5">
+                          <p className="text-sm font-medium">{x.question}</p>
+                          {x.type === 'mcq' ? (
+                            <ul className="mt-1 space-y-0.5">
+                              {x.options.map((o, j) => (
+                                <li
+                                  key={j}
+                                  className={
+                                    KEYS[j] === x.correct
+                                      ? 'text-xs font-medium text-primary'
+                                      : 'text-xs text-muted-foreground'
+                                  }
+                                >
+                                  {KEYS[j]}. {o} {KEYS[j] === x.correct && '✓'}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="mt-1 text-xs font-medium text-primary">
+                              Answer: {x.correct} ✓
                             </p>
-                            <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                              {o.body}
-                            </p>
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
+                          )}
+                          <p className="mt-1.5 text-xs italic text-muted-foreground">
+                            {x.explanation}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Created unpublished. Review in Admin → Quizzes, then publish.
+                    </p>
+                  </Item>
+                ))}
+
+                {splits.map((s) => (
+                  <Item
+                    key={s.capsule_id}
+                    id={`sp:${s.capsule_id}`}
+                    icon={<Scissors className="h-3 w-3" />}
+                    badge={`Split into ${s.lessons.length}`}
+                  >
+                    <p className="text-sm">
+                      <span className="text-muted-foreground line-through">{s.capsuleTitle}</span>
+                    </p>
+                    <ul className="mt-1.5 space-y-1">
+                      {s.lessons.map((l, i) => (
+                        <li key={i} className="text-sm">
+                          <span className="font-medium">{l.title}</span>
+                          <span className="text-muted-foreground"> — {l.description}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Progress carries over — anyone who completed the bundle keeps credit for all
+                      of these.
+                    </p>
+                  </Item>
+                ))}
 
                 {skipped && (
                   <p className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground">
@@ -470,13 +709,7 @@ export default function CourseAssistant({
                   `Apply ${accepted.size} change${accepted.size === 1 ? '' : 's'}`
                 )}
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setChanges(null);
-                  setOverviews([]);
-                }}
-              >
+              <Button variant="outline" onClick={reset}>
                 Back
               </Button>
             </div>
