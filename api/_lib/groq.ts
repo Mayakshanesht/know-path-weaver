@@ -90,22 +90,41 @@ export async function structured<T>(
     );
   }
 
-  const completion = await client.chat.completions.create({
-    model: SCHEMA_MODEL,
-    max_completion_tokens: maxTokens,
-    messages: [
-      { role: 'system', content: opts.system },
-      { role: 'user', content: opts.prompt },
-    ],
-    response_format: {
-      type: 'json_schema',
-      json_schema: {
-        name: opts.schemaName,
-        strict: true,
-        schema: opts.schema,
+  const messages = [
+    { role: 'system' as const, content: opts.system },
+    { role: 'user' as const, content: opts.prompt },
+  ];
+
+  const call = (strict: boolean) =>
+    client.chat.completions.create({
+      model: SCHEMA_MODEL,
+      max_completion_tokens: maxTokens,
+      messages,
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: opts.schemaName, strict, schema: opts.schema },
       },
-    },
-  });
+    });
+
+  let completion;
+  try {
+    completion = await call(true);
+  } catch (error) {
+    // Groq's strict mode rejects the whole response with json_validate_failed when
+    // constrained decoding cannot satisfy the schema — which it sometimes cannot, for
+    // schemas it accepts at request time. There is no partial result to salvage and no
+    // amount of retrying the same call will help.
+    //
+    // Non-strict still produces JSON and still steers by the schema; it just does not
+    // *guarantee* conformance. So fall back to it and validate the shape ourselves,
+    // which is what the callers do anyway (they check every returned id against the
+    // real ones before writing anything).
+    const failed = /json_validate_failed|failed to validate json/i.test(String(error));
+    if (!failed) throw error;
+
+    console.warn('strict schema failed; retrying without constrained decoding');
+    completion = await call(false);
+  }
 
   const choice = completion.choices[0];
   if (choice?.finish_reason === 'length') {
@@ -115,7 +134,11 @@ export async function structured<T>(
   const content = choice?.message?.content;
   if (!content) throw new Error('Model returned no content.');
 
-  return JSON.parse(content) as T;
+  try {
+    return JSON.parse(content) as T;
+  } catch {
+    throw new Error('Model returned malformed JSON.');
+  }
 }
 
 export function slugify(title: string): string {

@@ -283,15 +283,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Every id must exist, or "apply" would write to (or hang content off) the wrong
     // row. The model copies them from the prompt, so a mismatch means it invented one.
+    //
+    // The shape is also checked field by field, not assumed: the strict-schema fallback
+    // in structured() means a response may not have been constrained to the schema, so
+    // a malformed entry is possible and must be dropped rather than trusted.
     const validModules = new Set(modules.map((m) => m.id));
     const validCapsules = new Set(capsuleIds);
 
-    const changes = (result.changes ?? []).filter((c) =>
-      c.kind === 'module' ? validModules.has(c.id) : validCapsules.has(c.id)
+    const changes = (Array.isArray(result.changes) ? result.changes : []).filter(
+      (c): c is Change =>
+        !!c &&
+        typeof c.id === 'string' &&
+        typeof c.title === 'string' &&
+        c.title.trim().length > 0 &&
+        (c.kind === 'module' ? validModules.has(c.id) : validCapsules.has(c.id))
     );
 
-    const overviews = (result.overviews ?? []).filter(
-      (o) => validModules.has(o.module_id) && !hasOverview.has(o.module_id) && o.body?.trim()
+    const overviews = (Array.isArray(result.overviews) ? result.overviews : []).filter(
+      (o): o is Overview =>
+        !!o &&
+        typeof o.module_id === 'string' &&
+        typeof o.title === 'string' &&
+        typeof o.body === 'string' &&
+        o.body.trim().length > 0 &&
+        validModules.has(o.module_id) &&
+        !hasOverview.has(o.module_id)
     );
 
     return res.status(200).json({
