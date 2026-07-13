@@ -63,6 +63,7 @@ export default function CourseAssistant({
   const { toast } = useToast();
   const [context, setContext] = useState('');
   const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState('');
   const [applying, setApplying] = useState(false);
   const [changes, setChanges] = useState<Change[] | null>(null);
   const [overviews, setOverviews] = useState<Overview[]>([]);
@@ -79,24 +80,86 @@ export default function CourseAssistant({
 
   const run = async () => {
     setRunning(true);
+    setProgress('');
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) throw new Error('Your session expired. Sign in again.');
 
-      const response = await fetch('/api/improve-course', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ course_id: courseId, context }),
-      });
+      // Groq's free tier allows 8000 tokens/min, counting input plus the completion
+      // reservation together. A 13-module, 63-lesson course does not fit in one
+      // request, so walk it a few modules at a time. Small courses take one pass.
+      const { data: allModules } = await supabase
+        .from('learning_paths')
+        .select('id, title, capsules(id)')
+        .eq('course_id', courseId)
+        .order('order_index');
 
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data?.ok === false) {
-        throw new Error(data?.error ?? `Failed (${response.status})`);
+      if (!allModules?.length) throw new Error('This course has no modules yet.');
+
+      // Batch by lesson count, not module count: one 20-lesson module is a bigger
+      // prompt than four 2-lesson ones.
+      const LESSONS_PER_BATCH = 14;
+      const batches: string[][] = [];
+      let batch: string[] = [];
+      let lessons = 0;
+
+      for (const m of allModules) {
+        const n = (m.capsules ?? []).length || 1;
+        if (batch.length && lessons + n > LESSONS_PER_BATCH) {
+          batches.push(batch);
+          batch = [];
+          lessons = 0;
+        }
+        batch.push(m.id);
+        lessons += n;
+      }
+      if (batch.length) batches.push(batch);
+
+      const allChanges: Change[] = [];
+      const allOverviews: Overview[] = [];
+      const notes: string[] = [];
+
+      for (let i = 0; i < batches.length; i++) {
+        setProgress(
+          batches.length > 1 ? `Reading modules ${i + 1} of ${batches.length}...` : 'Reading the course...'
+        );
+
+        let attempt = 0;
+        for (;;) {
+          const response = await fetch('/api/improve-course', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ course_id: courseId, context, module_ids: batches[i] }),
+          });
+
+          const data = await response.json().catch(() => ({}));
+
+          if (response.ok && data?.ok !== false) {
+            allChanges.push(...(data.changes ?? []));
+            allOverviews.push(...(data.overviews ?? []));
+            if (data.skipped) notes.push(data.skipped);
+            break;
+          }
+
+          // Tokens-per-minute is a rolling budget, so the cure is simply to wait.
+          const rateLimited = /rate_limit|429|tokens per minute/i.test(
+            String(data?.error ?? '')
+          );
+
+          if (rateLimited && attempt < 2) {
+            attempt += 1;
+            setProgress(`Rate limit reached — waiting 60s (batch ${i + 1}/${batches.length})...`);
+            await new Promise((r) => setTimeout(r, 60_000));
+            continue;
+          }
+
+          throw new Error(data?.error ?? `Failed (${response.status})`);
+        }
       }
 
       // Look up what each suggestion is replacing, so the reviewer sees a real diff
@@ -110,19 +173,19 @@ export default function CourseAssistant({
         ...(caps ?? []).map((c) => [c.id, c.title] as const),
       ]);
 
-      const received: Change[] = (data.changes ?? []).map((c: Change) => ({
+      const received: Change[] = allChanges.map((c) => ({
         ...c,
         currentTitle: currentTitle.get(c.id),
       }));
 
-      const receivedOverviews: Overview[] = (data.overviews ?? []).map((o: Overview) => ({
+      const receivedOverviews: Overview[] = allOverviews.map((o) => ({
         ...o,
         moduleTitle: currentTitle.get(o.module_id),
       }));
 
       setChanges(received);
       setOverviews(receivedOverviews);
-      setSkipped(data.skipped ?? '');
+      setSkipped(notes.join(' '));
       // Pre-ticked: the point is to review a diff, not to click 40 checkboxes.
       setAccepted(
         new Set([
@@ -144,6 +207,7 @@ export default function CourseAssistant({
         variant: 'destructive',
       });
     }
+    setProgress('');
     setRunning(false);
   };
 
@@ -304,7 +368,7 @@ export default function CourseAssistant({
               {running ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Reading the course...
+                  {progress || 'Reading the course...'}
                 </>
               ) : (
                 <>

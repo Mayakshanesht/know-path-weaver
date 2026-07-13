@@ -133,9 +133,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: 'Admins only' });
   }
 
-  const { course_id: courseId, context } = (req.body ?? {}) as {
+  const {
+    course_id: courseId,
+    context,
+    module_ids: moduleIds,
+  } = (req.body ?? {}) as {
     course_id?: string;
     context?: string;
+    /**
+     * Restrict the run to these modules.
+     *
+     * Groq's free tier caps a request at 8000 tokens/min, counting input plus the
+     * completion reservation. A 13-module, 63-lesson course does not fit, so the client
+     * walks the course a few modules at a time. Absent, the whole course is attempted —
+     * which is fine for the smaller ones.
+     */
+    module_ids?: string[];
   };
   if (!courseId) return res.status(400).json({ error: 'course_id is required' });
 
@@ -148,11 +161,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!course) return res.status(404).json({ error: 'Course not found' });
 
-    const { data: modules } = await asCaller
+    let query = asCaller
       .from('learning_paths')
       .select('id, title, description, order_index, capsules(id, title, description, order_index)')
-      .eq('course_id', courseId)
-      .order('order_index');
+      .eq('course_id', courseId);
+
+    if (moduleIds?.length) query = query.in('id', moduleIds);
+
+    const { data: modules } = await query.order('order_index');
 
     if (!modules?.length) {
       return res.status(400).json({ error: 'This course has no modules yet.' });
@@ -225,6 +241,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .map((m) => m.id)
     );
 
+    // Size the completion reservation to the work in front of us.
+    //
+    // Groq's tokens-per-minute budget charges input + max_completion_tokens together,
+    // so a fixed 6000 was self-defeating: it left under 2000 for the prompt and the
+    // pre-flight guard rejected the AI course before Groq ever saw it. A rename is
+    // ~50 tokens and an overview ~300, so budget for the batch actually being sent and
+    // leave the rest of the window for the evidence.
+    const maxTokens = Math.min(
+      4500,
+      800 + capsuleIds.length * 60 + modules.length * 320
+    );
+
     const result = await structured<{
       changes: Change[];
       overviews: Overview[];
@@ -233,7 +261,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       system: SYSTEM,
       schemaName: 'course_suggestions',
       schema: SUGGESTIONS_SCHEMA,
-      maxTokens: 6000,
+      maxTokens,
       prompt:
         `COURSE: ${course.title}\n` +
         (course.tagline ? `${course.tagline}\n` : '') +
