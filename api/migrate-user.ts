@@ -36,13 +36,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Migration is not configured on the server.' });
   }
 
-  const { v1_access_token: v1Token, new_password: newPassword } = (req.body ?? {}) as {
+  const {
+    v1_access_token: v1Token,
+    new_password: newPassword,
+    check_only: checkOnly,
+  } = (req.body ?? {}) as {
     v1_access_token?: string;
     new_password?: string;
+    /**
+     * Ask whether this account has already moved, without changing anything.
+     *
+     * Needed because a migrated user whose browser autofills their OLD password
+     * fails against V2, still succeeds against V1, and would otherwise be shown the
+     * "we've moved" screen on every single login — silently resetting their password
+     * each time. It requires a valid V1 token, so it cannot be used to probe which
+     * emails are registered.
+     */
+    check_only?: boolean;
   };
 
   if (!v1Token) return res.status(400).json({ error: 'v1_access_token is required' });
-  if (!newPassword || newPassword.length < 8) {
+  if (!checkOnly && (!newPassword || newPassword.length < 8)) {
     return res.status(400).json({ error: 'Choose a password of at least 8 characters.' });
   }
 
@@ -82,9 +96,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       (u) => u.email?.toLowerCase() === email.toLowerCase()
     );
 
+    // A pure question: has this account moved? Changes nothing.
+    if (checkOnly) {
+      return res.status(200).json({ ok: true, already_migrated: Boolean(already), email });
+    }
+
     if (already) {
       const { error: pwError } = await v2.auth.admin.updateUserById(already.id, {
-        password: newPassword,
+        password: newPassword!,
       });
 
       if (pwError) throw new Error(pwError.message);
@@ -112,7 +131,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // since died.
     const { data: created, error: createError } = await v2.auth.admin.createUser({
       email,
-      password: newPassword,
+      password: newPassword!,
       email_confirm: true,
       user_metadata: { full_name: fullName, migrated_from_v1: legacy.id },
     });

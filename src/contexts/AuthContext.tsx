@@ -17,7 +17,9 @@ interface AuthContextType {
   checkLegacyAccount: (
     email: string,
     password: string
-  ) => Promise<{ found: true; v1AccessToken: string } | { found: false }>;
+  ) => Promise<
+    { found: true; v1AccessToken: string; alreadyMigrated: boolean } | { found: false }
+  >;
   migrateLegacyAccount: (
     email: string,
     v1AccessToken: string,
@@ -173,7 +175,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (error || !data.session) return { found: false as const };
 
-    return { found: true as const, v1AccessToken: data.session.access_token };
+    const v1AccessToken = data.session.access_token;
+
+    // The old password still works on V1 forever, so a user who has ALREADY moved —
+    // and whose browser autofills that old password — would otherwise be shown the
+    // "we've moved" screen on every login and silently have their password reset each
+    // time. Ask the server which case this is before deciding what to show them.
+    let alreadyMigrated = false;
+    try {
+      const response = await fetch('/api/migrate-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ v1_access_token: v1AccessToken, check_only: true }),
+      });
+      const result = await response.json();
+      alreadyMigrated = Boolean(result?.already_migrated);
+    } catch {
+      // If the check itself fails, fall through and offer migration. Worst case the
+      // user sets a password they already had; better than blocking them entirely.
+    }
+
+    return { found: true as const, v1AccessToken, alreadyMigrated };
   };
 
   /**

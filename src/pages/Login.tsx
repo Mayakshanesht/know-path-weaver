@@ -19,6 +19,7 @@ export default function Login() {
   // Non-null once we've confirmed this is an existing learner on the old project
   // who needs to choose a password for the new one.
   const [v1Token, setV1Token] = useState<string | null>(null);
+  const [alreadyMigrated, setAlreadyMigrated] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [migrating, setMigrating] = useState(false);
   const navigate = useNavigate();
@@ -46,8 +47,12 @@ export default function Login() {
 
     if (legacy.found) {
       setV1Token(legacy.v1AccessToken);
+      // Distinguishes "you need to move" from "you've moved, this is your OLD
+      // password". Without this, a migrated user whose browser autofills the old
+      // password sees the migration pitch on every login.
+      setAlreadyMigrated(legacy.alreadyMigrated);
       setIsLoading(false);
-      return; // renders the "set a new password" step
+      return;
     }
 
     // Supabase rejects an unverified account with this specific code. Without
@@ -95,8 +100,10 @@ export default function Login() {
     }
 
     toast({
-      title: 'All set',
-      description: 'Your account, courses and progress have moved across.',
+      title: alreadyMigrated ? 'Password updated' : 'All set',
+      description: alreadyMigrated
+        ? 'Signed in with your new password.'
+        : 'Your account, courses and progress have moved across.',
     });
     navigate('/home', { replace: true });
     setMigrating(false);
@@ -129,11 +136,23 @@ export default function Login() {
             <ShieldCheck className="h-6 w-6 text-cyan-300" />
           </div>
 
-          <h1 className="text-2xl font-semibold">One quick step</h1>
+          <h1 className="text-2xl font-semibold">
+            {alreadyMigrated ? 'That’s your old password' : 'One quick step'}
+          </h1>
           <p className="mt-2 text-sm leading-relaxed text-slate-300">
-            We've moved KnowGraph to a new, more secure platform. Your courses and
-            progress are already waiting for you — we just need you to choose a new
-            password. We can't carry the old one across.
+            {alreadyMigrated ? (
+              <>
+                Your account has already moved. Sign in with the new password you
+                chose — or, since you’ve just proved this account is yours, set a new
+                one below.
+              </>
+            ) : (
+              <>
+                We’ve moved KnowGraph to a new, more secure platform. Your courses and
+                progress are already waiting for you — we just need you to choose a new
+                password, because we can’t carry the old one across.
+              </>
+            )}
           </p>
 
           <form onSubmit={handleMigrate} className="mt-6 space-y-4">
@@ -151,7 +170,9 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="newPassword">Choose a new password</Label>
+              <Label htmlFor="newPassword">
+                {alreadyMigrated ? 'Set a new password' : 'Choose a new password'}
+              </Label>
               <Input
                 id="newPassword"
                 name="new-password"
@@ -169,8 +190,10 @@ export default function Login() {
               {migrating ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Moving your account...
+                  {alreadyMigrated ? 'Updating...' : 'Moving your account...'}
                 </>
+              ) : alreadyMigrated ? (
+                'Set password and sign in'
               ) : (
                 'Continue'
               )}
@@ -180,11 +203,13 @@ export default function Login() {
               type="button"
               onClick={() => {
                 setV1Token(null);
+                setAlreadyMigrated(false);
                 setNewPassword('');
+                setPassword('');
               }}
               className="w-full text-center text-xs text-slate-400 hover:text-slate-200"
             >
-              Cancel
+              {alreadyMigrated ? 'Back — I’ll use my new password' : 'Cancel'}
             </button>
           </form>
         </motion.div>
