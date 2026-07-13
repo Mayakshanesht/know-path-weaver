@@ -30,3 +30,6 @@ dist-ssr
 *.sw?
 
 backup/
+
+# Original (uncompressed) marketing media — kept locally, never shipped or committed.
+src/assets/marketing/_source/

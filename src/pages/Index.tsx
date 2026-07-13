@@ -4,9 +4,10 @@ import { motion } from 'framer-motion';
 import { ArrowRight, BookOpen, Rocket, ShieldCheck, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import heroGif from '@/assets/Create_a_smooth_202601060305.gif';
+import heroVideo from '@/assets/hero.mp4';
 import updatedLogo from '@/assets/KnowGraph Logo.png';
 import ArticlesSection from '@/components/landing/ArticlesSection';
+import BuiltByYou from '@/components/landing/BuiltByYou';
 
 export default function Index() {
   useEffect(() => {
@@ -30,9 +31,17 @@ export default function Index() {
         towards the right so the animation is still visible.
       */}
       <div className="absolute inset-0 overflow-hidden">
-        <img
-          src={heroGif}
-          alt=""
+        {/*
+          Was a 4.4MB GIF, above the fold, blocking first paint. The same eight seconds as
+          H.264 is 0.21MB — twenty times smaller — and it is dimmed to 35% behind a scrim
+          anyway, so it can take the compression. GIF is a terrible format for a video.
+        */}
+        <video
+          src={heroVideo}
+          autoPlay
+          loop
+          muted
+          playsInline
           aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover brightness-[0.35] saturate-50"
         />
@@ -168,7 +177,15 @@ export default function Index() {
           >
             <div className="absolute inset-0 bg-gradient-to-br from-slate-950/70 via-slate-950/40 to-transparent" />
             <div className="relative h-full w-full">
-              <img src={heroGif} alt="KnowGraph hero animation" className="absolute inset-0 h-full w-full object-cover" />
+              <video
+                src={heroVideo}
+                autoPlay
+                loop
+                muted
+                playsInline
+                aria-hidden="true"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
               <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-950/40 to-slate-950/90" />
             </div>
 
@@ -194,6 +211,7 @@ export default function Index() {
       </div>
     </section>
 
+    <BuiltByYou />
     <ArticlesSection />
     </>
   );

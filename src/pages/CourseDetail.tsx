@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { COUNTRIES, INDIAN_STATES, guessCountry, regionForCountry } from '@/lib/countries';
+import { clipForCourse } from '@/lib/marketingMedia';
 
 interface LearningPathWithCapsules extends LearningPath {
   capsules: Capsule[];
@@ -67,6 +68,9 @@ export default function CourseDetail() {
   // Prefilled from the browser locale, so most learners never open the dropdown.
   const [billingCountry, setBillingCountry] = useState<string>(() => guessCountry());
   const [billingState, setBillingState] = useState<string>('');
+
+  /** The clip of what this course actually builds, if there is one for it. */
+  const courseClip = clipForCourse(course?.title);
 
   /**
    * The code the buyer writes in the payment note, so a line on the bank statement can be
@@ -351,6 +355,46 @@ export default function CourseDetail() {
                   <span>{learningPaths.length} Modules</span>
                 </div>
               </div>
+
+              {/*
+                What they will actually have built by the end, shown running. It goes above
+                the syllabus deliberately: a list of module titles is an argument you have to
+                read, and a planner choosing a trajectory is one you don't.
+              */}
+              {courseClip && (
+                <figure className="my-8 overflow-hidden rounded-2xl border bg-card shadow-lg">
+                  <div className="bg-slate-950">
+                    {courseClip.isVideo ? (
+                      <video
+                        src={courseClip.url}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="h-auto w-full"
+                        aria-label={courseClip.title}
+                      />
+                    ) : (
+                      <img
+                        src={courseClip.url}
+                        alt={courseClip.title}
+                        loading="lazy"
+                        className="h-auto w-full"
+                      />
+                    )}
+                  </div>
+                  <figcaption className="p-5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                      You build this
+                    </p>
+                    <h3 className="mt-1.5 text-lg font-semibold">{courseClip.title}</h3>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      {courseClip.caption}
+                    </p>
+                  </figcaption>
+                </figure>
+              )}
 
               {/* The structured syllabus. This used to be a whitespace-pre-wrap dump of a
                   text field, which is how internal notes ("🔹 Module 0 — Foundations…")
