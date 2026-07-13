@@ -116,18 +116,34 @@ export default function MarketingManager() {
   const handleGenerate = async (campaign: MarketingCampaign) => {
     setGeneratingId(campaign.id);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-marketing', {
-        body: {
+      // The generator runs as a Vercel serverless route (that is where the Groq
+      // key lives), so this is a plain fetch rather than a Supabase function
+      // invoke. The route re-checks the admin role from this token.
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) throw new Error('Your session expired. Sign in again.');
+
+      const response = await fetch('/api/generate-marketing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
           campaign_id: campaign.id,
           channel: campaign.channel,
           course_id: campaign.course_id,
           objective: campaign.objective,
           audience: campaign.audience,
-        },
+        }),
       });
 
-      if (error) throw error;
-      if (data?.ok === false) throw new Error(data.error ?? 'Generation failed');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error ?? `Generation failed (${response.status})`);
+      }
 
       toast({ title: 'Drafts ready', description: 'Three variants generated.' });
       await fetchAll();
