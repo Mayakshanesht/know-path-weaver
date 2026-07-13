@@ -62,12 +62,21 @@ export default function Index() {
                 </span>
               </div>
 
+              {/*
+                Names both audiences outright. "Robotics" alone loses the autonomous-driving
+                engineer who does not think of themselves as a roboticist, and "autonomous
+                driving" alone loses the physical-AI crowd entirely — and the whole argument of
+                the platform is that they are the SAME stack. Say so.
+              */}
               <h1
-                className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.05] tracking-tight max-w-3xl text-white"
+                className="max-w-3xl text-5xl font-extrabold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-7xl"
                 style={{ textShadow: '0 2px 24px rgba(2,6,23,0.9)' }}
               >
-                Robotics, taught as{' '}
-                <span className="text-cyan-300">one pipeline</span>.
+                Autonomous driving.
+                <br />
+                Physical AI.
+                <br />
+                <span className="text-cyan-300">One pipeline.</span>
               </h1>
               {/*
                 The old copy explained the philosophy and never said what a student would be
@@ -75,21 +84,22 @@ export default function Index() {
                 have, then show them the specific things they will have built.
               */}
               <p
-                className="max-w-2xl text-lg sm:text-xl font-medium leading-8 text-slate-100"
+                className="max-w-2xl text-lg font-medium leading-8 text-slate-100 sm:text-xl"
                 style={{ textShadow: '0 1px 12px rgba(2,6,23,0.85)' }}
               >
                 You can finish five courses on perception, control and planning and still not be
-                able to say <span className="text-white">how a car decides to brake.</span> Because
-                nobody ever told you what the planner needed from perception, or where the
-                trajectory the controller tracks came from.
+                able to say <span className="text-white">how a car decides to brake.</span> Nobody
+                ever told you what the planner needed from perception, or where the trajectory the
+                controller tracks came from.
               </p>
               <p
                 className="max-w-2xl text-lg leading-8 text-slate-200"
                 style={{ textShadow: '0 1px 12px rgba(2,6,23,0.85)' }}
               >
-                KnowGraph teaches the whole stack <strong className="text-white">in the order it
-                actually runs</strong> — and every module tells you what it builds on and what
-                breaks without it.
+                Sense → perceive → predict → plan → control → certify. It is{' '}
+                <strong className="text-white">the same stack whether the thing moving is a car, a
+                drone or a robot arm</strong> — and KnowGraph teaches it in the order it actually
+                runs, with every module telling you what it builds on and what breaks without it.
               </p>
 
               <ul className="max-w-2xl space-y-2.5">
