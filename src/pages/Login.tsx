@@ -16,8 +16,13 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
   const [resending, setResending] = useState(false);
+  // Non-null once we've confirmed this is an existing learner on the old project
+  // who needs to choose a password for the new one.
+  const [v1Token, setV1Token] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [migrating, setMigrating] = useState(false);
   const navigate = useNavigate();
-  const { signIn, resendVerification } = useAuth();
+  const { signIn, resendVerification, checkLegacyAccount, migrateLegacyAccount } = useAuth();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -27,30 +32,74 @@ export default function Login() {
 
     const { error } = await signIn(email, password);
 
-    if (error) {
-      // Supabase rejects an unverified account with this specific code. Without
-      // calling it out, the user just sees a generic failure and has no way back.
-      const unverified =
-        (error as { code?: string }).code === 'email_not_confirmed' ||
-        /email not confirmed/i.test(error.message);
-
-      setNeedsVerification(unverified);
-      toast({
-        title: unverified ? 'Verify your email first' : 'Login failed',
-        description: unverified
-          ? `We sent a verification link to ${email}. Confirm it, then sign in.`
-          : error.message,
-        variant: 'destructive',
-      });
-    } else {
-      toast({
-        title: "Welcome back!",
-        description: "You've successfully logged in."
-      });
+    if (!error) {
+      toast({ title: 'Welcome back!', description: "You've successfully logged in." });
       navigate('/home', { replace: true });
+      setIsLoading(false);
+      return;
     }
 
+    // Sign-in failed here. Before calling it a bad password, check whether this is
+    // an existing learner who has not been moved to the new system yet — their old
+    // password still works against the old project.
+    const legacy = await checkLegacyAccount(email, password);
+
+    if (legacy.found) {
+      setV1Token(legacy.v1AccessToken);
+      setIsLoading(false);
+      return; // renders the "set a new password" step
+    }
+
+    // Supabase rejects an unverified account with this specific code. Without
+    // calling it out, the user just sees a generic failure and has no way back.
+    const unverified =
+      (error as { code?: string }).code === 'email_not_confirmed' ||
+      /email not confirmed/i.test(error.message);
+
+    setNeedsVerification(unverified);
+    toast({
+      title: unverified ? 'Verify your email first' : 'Login failed',
+      description: unverified
+        ? `We sent a verification link to ${email}. Confirm it, then sign in.`
+        : error.message,
+      variant: 'destructive',
+    });
+
     setIsLoading(false);
+  };
+
+  const handleMigrate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!v1Token) return;
+
+    if (newPassword.length < 8) {
+      toast({
+        title: 'Password too short',
+        description: 'Use at least 8 characters.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setMigrating(true);
+    const { error } = await migrateLegacyAccount(email, v1Token, newPassword);
+
+    if (error) {
+      toast({
+        title: 'Could not move your account',
+        description: error.message,
+        variant: 'destructive',
+      });
+      setMigrating(false);
+      return;
+    }
+
+    toast({
+      title: 'All set',
+      description: 'Your account, courses and progress have moved across.',
+    });
+    navigate('/home', { replace: true });
+    setMigrating(false);
   };
 
   const handleResend = async () => {
@@ -63,6 +112,75 @@ export default function Login() {
     });
     setResending(false);
   };
+
+  // An existing learner whose account is still on the old system. They have just
+  // proved they own it, so all that is left is choosing a password for the new one.
+  if (v1Token) {
+    return (
+      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 p-4 text-slate-50">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.15),_transparent_25%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.15),_transparent_30%)]" />
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="relative w-full max-w-md rounded-[2rem] border border-white/10 bg-slate-900/85 p-8 shadow-2xl backdrop-blur-xl"
+        >
+          <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/15">
+            <ShieldCheck className="h-6 w-6 text-cyan-300" />
+          </div>
+
+          <h1 className="text-2xl font-semibold">One quick step</h1>
+          <p className="mt-2 text-sm leading-relaxed text-slate-300">
+            We've moved KnowGraph to a new, more secure platform. Your courses and
+            progress are already waiting for you — we just need you to choose a new
+            password. We can't carry the old one across.
+          </p>
+
+          <form onSubmit={handleMigrate} className="mt-6 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="migrateEmail">Email</Label>
+              <Input id="migrateEmail" value={email} disabled className="bg-slate-800/60" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">Choose a new password</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                autoFocus
+                required
+              />
+            </div>
+
+            <Button type="submit" className="w-full" disabled={migrating}>
+              {migrating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Moving your account...
+                </>
+              ) : (
+                'Continue'
+              )}
+            </Button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setV1Token(null);
+                setNewPassword('');
+              }}
+              className="w-full text-center text-xs text-slate-400 hover:text-slate-200"
+            >
+              Cancel
+            </button>
+          </form>
+        </motion.div>
+      </main>
+    );
+  }
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-50">

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { legacyClient, legacyEnabled } from '@/integrations/supabase/legacy';
 import { Profile, UserRole, AuthUser } from '@/types/database';
 
 interface AuthContextType {
@@ -12,6 +13,16 @@ interface AuthContextType {
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   resendVerification: (email: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  /** After a failed V2 sign-in: does this account still live on the old project? */
+  checkLegacyAccount: (
+    email: string,
+    password: string
+  ) => Promise<{ found: true; v1AccessToken: string } | { found: false }>;
+  migrateLegacyAccount: (
+    email: string,
+    v1AccessToken: string,
+    newPassword: string
+  ) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -147,6 +158,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error };
   };
 
+  /**
+   * Is this a V1 account that has not moved to V2 yet?
+   *
+   * Called only after a V2 sign-in fails. Their old password still works against V1,
+   * and that session is what lets us rebuild them here — but it is deliberately not
+   * persisted, so it can never become the app's session.
+   */
+  const checkLegacyAccount = async (email: string, password: string) => {
+    if (!legacyEnabled) return { found: false as const };
+
+    const legacy = legacyClient();
+    const { data, error } = await legacy.auth.signInWithPassword({ email, password });
+
+    if (error || !data.session) return { found: false as const };
+
+    return { found: true as const, v1AccessToken: data.session.access_token };
+  };
+
+  /**
+   * Rebuilds a V1 user in V2, then signs them in here.
+   *
+   * The server re-verifies the V1 token against V1 before it trusts any of this —
+   * the browser is not believed about who it is.
+   */
+  const migrateLegacyAccount = async (
+    email: string,
+    v1AccessToken: string,
+    newPassword: string
+  ) => {
+    const response = await fetch('/api/migrate-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ v1_access_token: v1AccessToken, new_password: newPassword }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || result?.ok === false) {
+      return { error: new Error(result?.error ?? 'Migration failed.') };
+    }
+
+    // Their account now exists here, with the password they just chose.
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password: newPassword,
+    });
+
+    return { error };
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -166,6 +227,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         resendVerification,
         signIn,
+        checkLegacyAccount,
+        migrateLegacyAccount,
         signOut,
       }}
     >
