@@ -67,13 +67,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const v2 = createClient(V2_URL, V2_SERVICE, { auth: { persistSession: false } });
 
   try {
-    // --- Already migrated? Be idempotent, not an error -------------------------
+    // --- Already migrated? Set the password they just chose --------------------
+    // Returning a bare "already migrated" here was a bug: the client then tried to
+    // sign in with the new password, but the account still carried the one set on
+    // the first run, so a second attempt always failed with "could not move your
+    // account".
+    //
+    // They have just re-authenticated against V1, which is the same proof of
+    // ownership the original migration relied on — so applying the new password is
+    // sound, and it turns V1 into a recovery path for anyone who forgets the one
+    // they chose.
     const { data: existing } = await v2.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const already = existing?.users.find(
       (u) => u.email?.toLowerCase() === email.toLowerCase()
     );
 
     if (already) {
+      const { error: pwError } = await v2.auth.admin.updateUserById(already.id, {
+        password: newPassword,
+      });
+
+      if (pwError) throw new Error(pwError.message);
+
       return res.status(200).json({ ok: true, already_migrated: true, email });
     }
 

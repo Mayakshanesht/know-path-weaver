@@ -139,14 +139,24 @@ export default function Login() {
           <form onSubmit={handleMigrate} className="mt-6 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="migrateEmail">Email</Label>
-              <Input id="migrateEmail" value={email} disabled className="bg-slate-800/60" />
+              <Input
+                id="migrateEmail"
+                name="username"
+                type="email"
+                value={email}
+                readOnly
+                autoComplete="username"
+                className="bg-slate-800/60"
+              />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="newPassword">Choose a new password</Label>
               <Input
                 id="newPassword"
+                name="new-password"
                 type="password"
+                autoComplete="new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="At least 8 characters"
@@ -212,7 +222,9 @@ export default function Login() {
                     <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
+                      name="email"
                       type="email"
+                      autoComplete="username"
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -225,7 +237,9 @@ export default function Login() {
                     <Label htmlFor="password">Password</Label>
                     <Input
                       id="password"
+                      name="password"
                       type="password"
+                      autoComplete="current-password"
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
