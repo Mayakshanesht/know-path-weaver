@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import heroGif from '@/assets/Create_a_smooth_202601060305.gif';
 import updatedLogo from '@/assets/KnowGraph Logo.png';
+import ArticlesSection from '@/components/landing/ArticlesSection';
 
 export default function Index() {
   useEffect(() => {
@@ -20,6 +21,7 @@ export default function Index() {
   }, []);
 
   return (
+    <>
     <section className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-50">
       <div className="absolute inset-0 overflow-hidden">
         <img
@@ -150,5 +152,8 @@ export default function Index() {
         </div>
       </div>
     </section>
+
+    <ArticlesSection />
+    </>
   );
 }

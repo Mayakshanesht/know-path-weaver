@@ -245,6 +245,146 @@ export type Database = {
           },
         ]
       }
+      articles: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          is_published: boolean
+          published_at: string
+          reading_minutes: number
+          slug: string
+          sources: Json
+          summary: string
+          title: string
+          topic: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          published_at?: string
+          reading_minutes?: number
+          slug: string
+          sources?: Json
+          summary: string
+          title: string
+          topic: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          published_at?: string
+          reading_minutes?: number
+          slug?: string
+          sources?: Json
+          summary?: string
+          title?: string
+          topic?: string
+        }
+        Relationships: []
+      }
+      marketing_campaigns: {
+        Row: {
+          audience: string | null
+          channel: Database["public"]["Enums"]["campaign_channel"]
+          clicks: number
+          course_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          impressions: number
+          name: string
+          objective: string | null
+          published_at: string | null
+          scheduled_for: string | null
+          signups: number
+          status: Database["public"]["Enums"]["campaign_status"]
+          updated_at: string
+        }
+        Insert: {
+          audience?: string | null
+          channel: Database["public"]["Enums"]["campaign_channel"]
+          clicks?: number
+          course_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          impressions?: number
+          name: string
+          objective?: string | null
+          published_at?: string | null
+          scheduled_for?: string | null
+          signups?: number
+          status?: Database["public"]["Enums"]["campaign_status"]
+          updated_at?: string
+        }
+        Update: {
+          audience?: string | null
+          channel?: Database["public"]["Enums"]["campaign_channel"]
+          clicks?: number
+          course_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          impressions?: number
+          name?: string
+          objective?: string | null
+          published_at?: string | null
+          scheduled_for?: string | null
+          signups?: number
+          status?: Database["public"]["Enums"]["campaign_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      marketing_posts: {
+        Row: {
+          body: string
+          campaign_id: string
+          created_at: string
+          hashtags: string[]
+          hook: string | null
+          id: string
+          is_selected: boolean
+          subject: string | null
+          variant: number
+        }
+        Insert: {
+          body: string
+          campaign_id: string
+          created_at?: string
+          hashtags?: string[]
+          hook?: string | null
+          id?: string
+          is_selected?: boolean
+          subject?: string | null
+          variant?: number
+        }
+        Update: {
+          body?: string
+          campaign_id?: string
+          created_at?: string
+          hashtags?: string[]
+          hook?: string | null
+          id?: string
+          is_selected?: boolean
+          subject?: string | null
+          variant?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_posts_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           amount: number
@@ -630,6 +770,13 @@ export type Database = {
     Enums: {
       app_role: "admin" | "student"
       billing_region: "india" | "international"
+      campaign_channel: "linkedin" | "email"
+      campaign_status:
+        | "draft"
+        | "approved"
+        | "scheduled"
+        | "published"
+        | "archived"
       content_type:
         | "google_drive"
         | "youtube"

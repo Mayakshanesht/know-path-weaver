@@ -2,7 +2,8 @@ import { motion } from 'framer-motion';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BookOpen, Users, BarChart3, FileQuestion, Receipt } from 'lucide-react';
+import { BookOpen, Users, BarChart3, FileQuestion, Receipt, Megaphone } from 'lucide-react';
+import MarketingManager from '@/components/admin/MarketingManager';
 import CoursesManager from '@/components/admin/CoursesManager';
 import EnrollmentsManager from '@/components/admin/EnrollmentsManager';
 import ProgressViewer from '@/components/admin/ProgressViewer';
@@ -26,7 +27,7 @@ export default function AdminPanel() {
           </motion.div>
 
           <Tabs defaultValue="courses" className="space-y-6">
-            <TabsList className="grid w-full max-w-2xl grid-cols-5">
+            <TabsList className="grid w-full max-w-3xl grid-cols-6">
               <TabsTrigger value="courses" className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4" />
                 <span className="hidden sm:inline">Courses</span>
@@ -42,6 +43,10 @@ export default function AdminPanel() {
               <TabsTrigger value="quizzes" className="flex items-center gap-2">
                 <FileQuestion className="w-4 h-4" />
                 <span className="hidden sm:inline">Quizzes</span>
+              </TabsTrigger>
+              <TabsTrigger value="marketing" className="flex items-center gap-2">
+                <Megaphone className="w-4 h-4" />
+                <span className="hidden sm:inline">Marketing</span>
               </TabsTrigger>
               <TabsTrigger value="progress" className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" />
@@ -63,6 +68,10 @@ export default function AdminPanel() {
 
             <TabsContent value="quizzes">
               <QuizzesManager />
+            </TabsContent>
+
+            <TabsContent value="marketing">
+              <MarketingManager />
             </TabsContent>
 
             <TabsContent value="progress">

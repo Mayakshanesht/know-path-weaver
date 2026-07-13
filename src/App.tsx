@@ -11,6 +11,8 @@ import Signup from '@/pages/Signup';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import AuthCallback from '@/pages/AuthCallback';
+import Articles from '@/pages/Articles';
+import ArticleDetail from '@/pages/ArticleDetail';
 import QuickPasswordReset from '@/pages/QuickPasswordReset';
 import Quiz from '@/pages/Quiz';
 import Courses from '@/pages/Courses';
@@ -35,6 +37,9 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            {/* Public: the research feed is a front door, not a member benefit. */}
+            <Route path="/articles" element={<Articles />} />
+            <Route path="/articles/:slug" element={<ArticleDetail />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/quick-reset" element={<QuickPasswordReset />} />

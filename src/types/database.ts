@@ -208,6 +208,57 @@ export interface Invoice {
   created_at: string;
 }
 
+export interface ArticleSource {
+  title: string;
+  url: string;
+}
+
+export interface Article {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  /** Markdown. */
+  body: string;
+  topic: string;
+  reading_minutes: number;
+  sources: ArticleSource[];
+  is_published: boolean;
+  published_at: string;
+  created_at: string;
+}
+
+export type CampaignChannel = 'linkedin' | 'email';
+export type CampaignStatus = 'draft' | 'approved' | 'scheduled' | 'published' | 'archived';
+
+export interface MarketingCampaign {
+  id: string;
+  name: string;
+  channel: CampaignChannel;
+  course_id: string | null;
+  objective: string | null;
+  audience: string | null;
+  status: CampaignStatus;
+  scheduled_for: string | null;
+  published_at: string | null;
+  impressions: number;
+  clicks: number;
+  signups: number;
+  created_at: string;
+}
+
+export interface MarketingPost {
+  id: string;
+  campaign_id: string;
+  variant: number;
+  subject: string | null;
+  body: string;
+  hashtags: string[];
+  hook: string | null;
+  is_selected: boolean;
+  created_at: string;
+}
+
 // Auth context types
 export interface AuthUser {
   id: string;
