@@ -36,6 +36,7 @@ import {
 import paymentQR from '@/assets/payment_qr_code_cropped.jpeg?url';
 import CourseCover from '@/components/courses/CourseCover';
 import CourseSyllabus from '@/components/courses/CourseSyllabus';
+import LearningGraph from '@/components/courses/LearningGraph';
 import {
   Select,
   SelectContent,
@@ -305,6 +306,29 @@ export default function CourseDetail() {
                   text field, which is how internal notes ("🔹 Module 0 — Foundations…")
                   ended up rendered at prospective buyers. */}
               <CourseSyllabus syllabus={(course as { syllabus?: unknown }).syllabus as never} />
+
+              {/* The course as a graph. A syllabus is a list, and a list does not say
+                  why module 7 follows module 6 — this shows the chain from foundations
+                  through to the capstone, so a buyer can see the shape of the thing. */}
+              {learningPaths.length > 1 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>How it fits together</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Each module builds on the one before it. This is the path.
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <LearningGraph
+                      nodes={learningPaths.map((p) => ({
+                        id: p.id,
+                        title: p.title,
+                        total: p.capsules.length,
+                      }))}
+                    />
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Learning Paths */}
               <Card>

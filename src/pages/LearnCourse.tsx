@@ -14,6 +14,7 @@ import { downloadCertificate } from '@/lib/certificate';
 import { Skeleton } from '@/components/ui/skeleton';
 import ExternalResourceCard from '@/components/learn/ExternalResourceCard';
 import { Markdown } from '@/lib/markdown';
+import LearningGraph from '@/components/courses/LearningGraph';
 import {
   ChevronLeft,
   ChevronRight,
@@ -599,6 +600,26 @@ export default function LearnCourse() {
   const overallProgress = totalCapsules > 0 ? Math.round((completedCapsules / totalCapsules) * 100) : 0;
   const courseCompleted = totalCapsules > 0 && overallProgress === 100;
 
+  // Which module are we in, where in it, and what comes next — so a lesson can open
+  // with its context and close by pointing forward instead of dead-ending.
+  const allCapsulesFlat = learningPaths.flatMap((p) => p.capsules);
+  const currentIndexFlat = allCapsulesFlat.findIndex((c) => c.id === currentCapsule?.id);
+  const nextCapsule =
+    currentIndexFlat >= 0 && currentIndexFlat < allCapsulesFlat.length - 1
+      ? allCapsulesFlat[currentIndexFlat + 1]
+      : null;
+
+  const currentPath = learningPaths.find((p) =>
+    p.capsules.some((c) => c.id === currentCapsule?.id)
+  );
+  const currentPathTitle = currentPath?.title ?? '';
+  const lessonPosition = currentPath && currentCapsule
+    ? {
+        index: currentPath.capsules.findIndex((c) => c.id === currentCapsule.id) + 1,
+        total: currentPath.capsules.length,
+      }
+    : null;
+
   if (loading) {
     return (
       <div className="min-h-screen flex">
@@ -814,6 +835,63 @@ export default function LearnCourse() {
               transition={{ duration: 0.4 }}
               className="max-w-4xl mx-auto space-y-6"
             >
+              {/*
+                The lesson header. This context used to sit BELOW the content — so the
+                introduction appeared after the thing it was introducing. A learner
+                should know what they are about to watch, and why, before they watch it.
+              */}
+              {!isCertificateCapsule(currentCapsule) && (
+                <div className="border-b pb-6">
+                  <p className="text-xs font-medium uppercase tracking-wider text-primary">
+                    {currentPathTitle}
+                    {lessonPosition && (
+                      <span className="text-muted-foreground">
+                        {' '}· Lesson {lessonPosition.index} of {lessonPosition.total}
+                      </span>
+                    )}
+                  </p>
+                  <h1 className="mt-2 text-2xl font-bold leading-tight sm:text-3xl">
+                    {currentCapsule.title}
+                  </h1>
+                  {currentCapsule.description && (
+                    <p className="mt-2 text-base leading-relaxed text-muted-foreground">
+                      {currentCapsule.description}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Where this lesson sits in the whole course. Shown on the very first
+                  lesson, where a learner most needs to see the shape of what they have
+                  bought — and never again, because after that it is just noise. */}
+              {currentIndexFlat === 0 && learningPaths.length > 1 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">How this course fits together</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Each module builds on the one before it.
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <LearningGraph
+                      nodes={learningPaths.map((p) => ({
+                        id: p.id,
+                        title: p.title,
+                        total: p.capsules.filter((c) => !c.isCertificate).length,
+                        completed: p.capsules.filter((c) => c.isCompleted && !c.isCertificate).length,
+                      }))}
+                      onSelect={(pathId) => {
+                        const first = learningPaths.find((p) => p.id === pathId)?.capsules[0];
+                        if (first && !first.isLocked) {
+                          setCurrentCapsule(first);
+                          persistCapsuleId(first.id);
+                        }
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Content Player */}
               {capsuleContent.length > 0 ? (
                 <div className="space-y-6">
@@ -954,16 +1032,21 @@ export default function LearnCourse() {
                 return null;
               })()}
 
-              {/* Capsule Info */}
+              {/* Finish + what comes next. The title and description have already been
+                  shown at the top, so repeating them here would just be noise. */}
               <Card>
-                <CardHeader>
-                  <CardTitle>{currentCapsule.title}</CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">
+                    {currentCapsule.isCompleted ? 'Lesson complete' : 'Finished this lesson?'}
+                  </CardTitle>
+                  {nextCapsule && (
+                    <p className="text-sm text-muted-foreground">
+                      Next up:{' '}
+                      <span className="font-medium text-foreground">{nextCapsule.title}</span>
+                    </p>
+                  )}
                 </CardHeader>
                 <CardContent>
-                  {currentCapsule.description && (
-                    <p className="text-muted-foreground mb-4">{currentCapsule.description}</p>
-                  )}
-
                   <div className="flex flex-wrap gap-4">
                     {currentCapsule.isCompleted ? (
                       <Badge className="bg-success/10 text-success">
