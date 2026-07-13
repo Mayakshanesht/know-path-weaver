@@ -12,7 +12,8 @@ dist
 dist-ssr
 *.local
 
-# Secrets. Never commit these; set them in the Vercel/Supabase dashboards.
+# Secrets. Vite inlines VITE_* vars at build time, so these are supplied by
+# Vercel > Settings > Environment Variables in production, not from this file.
 .env
 .env.*
 !.env.example

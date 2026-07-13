@@ -14,21 +14,33 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resending, setResending] = useState(false);
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { signIn, resendVerification } = useAuth();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setNeedsVerification(false);
 
     const { error } = await signIn(email, password);
 
     if (error) {
+      // Supabase rejects an unverified account with this specific code. Without
+      // calling it out, the user just sees a generic failure and has no way back.
+      const unverified =
+        (error as { code?: string }).code === 'email_not_confirmed' ||
+        /email not confirmed/i.test(error.message);
+
+      setNeedsVerification(unverified);
       toast({
-        title: "Login failed",
-        description: error.message,
-        variant: "destructive"
+        title: unverified ? 'Verify your email first' : 'Login failed',
+        description: unverified
+          ? `We sent a verification link to ${email}. Confirm it, then sign in.`
+          : error.message,
+        variant: 'destructive',
       });
     } else {
       toast({
@@ -39,6 +51,17 @@ export default function Login() {
     }
 
     setIsLoading(false);
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    const { error } = await resendVerification(email);
+    toast({
+      title: error ? 'Could not resend' : 'Verification email sent',
+      description: error ? error.message : `Check the inbox for ${email}.`,
+      variant: error ? 'destructive' : 'default',
+    });
+    setResending(false);
   };
 
   return (
@@ -112,6 +135,31 @@ export default function Login() {
                       'Sign in'
                     )}
                   </Button>
+
+                  {needsVerification && (
+                    <div className="rounded-2xl border border-amber-300/20 bg-amber-500/10 p-4 text-sm">
+                      <p className="text-slate-100">
+                        This account hasn't been verified yet. Open the link we emailed
+                        to <span className="font-medium">{email}</span>, or send a new one.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-3 w-full"
+                        onClick={handleResend}
+                        disabled={resending}
+                      >
+                        {resending ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          'Resend verification email'
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </form>
               </CardContent>
             </Card>

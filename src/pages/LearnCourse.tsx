@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { downloadCertificate } from '@/lib/certificate';
 import { Skeleton } from '@/components/ui/skeleton';
+import ExternalResourceCard from '@/components/learn/ExternalResourceCard';
 import {
   ChevronLeft,
   ChevronRight,
@@ -371,6 +372,24 @@ export default function LearnCourse() {
     setCapsuleContent((data || []) as CapsuleContent[]);
   };
 
+  const isColabUrl = (url: string) => url.includes('colab.research.google.com');
+
+  /**
+   * True only for content that renders as an actual video/document frame.
+   * Everything else (link cards, rich text) must not sit in a letterboxed black box.
+   */
+  const isFramedEmbed = (content: CapsuleContent) => {
+    if (content.content_type === 'colab' || content.content_type === 'github') return false;
+    if (content.content_type === 'text' || content.content_type === 'image') return false;
+    if (
+      (content.content_type === 'weblink' || content.content_type === 'google_drive') &&
+      isColabUrl(content.content_value)
+    ) {
+      return false;
+    }
+    return true;
+  };
+
   const renderContent = (content: CapsuleContent) => {
     const config = {
       google_drive: { icon: FileVideo, label: 'Google Drive' },
@@ -385,47 +404,21 @@ export default function LearnCourse() {
 
     const { icon: Icon, label } = config[content.content_type];
 
-    const isColabUrl = (url: string) => url.includes('colab.research.google.com');
-    const renderColabLinkFallback = (url: string) => (
-      <div className="w-full rounded-3xl border border-border bg-muted p-6 text-slate-100">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-primary">
-              <ExternalLink className="w-5 h-5" />
-              <h3 className="text-lg font-semibold">Google Colab Notebook</h3>
-            </div>
-            <p className="text-sm text-muted-foreground max-w-2xl">
-              Google Colab blocks embedding in iframes. Open the notebook in a new tab for the best experience.
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.open(url, '_blank', 'noreferrer')}
-            className="w-full sm:w-auto"
-          >
-            <ExternalLink className="w-4 h-4 mr-2" />
-            Open in Colab
-          </Button>
-        </div>
-
-        <div className="mt-4 rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300 border border-slate-700">
-          <p className="font-medium mb-2">Notebook URL</p>
-          <p className="break-words">{url}</p>
-        </div>
-
-        <div className="mt-4 rounded-2xl bg-yellow-950/30 border border-yellow-800 p-4 text-sm text-yellow-100">
-          <p className="font-medium">Why this happens</p>
-          <p>
-            Google Colab sets security headers that prevent this notebook from loading inside an LMS iframe.
-            Opening it directly avoids the blocked frame and ensures the notebook loads correctly.
-          </p>
-        </div>
-      </div>
+    const resourceCard = (kind: 'colab' | 'github' | 'weblink') => (
+      <ExternalResourceCard
+        url={content.content_value}
+        kind={kind}
+        title={content.title}
+        description={content.description}
+      />
     );
 
-    if ((content.content_type === 'weblink' || content.content_type === 'google_drive') && isColabUrl(content.content_value)) {
-      return renderColabLinkFallback(content.content_value);
+    // A Colab link can arrive tagged as any of several types, so match on the URL.
+    if (
+      (content.content_type === 'weblink' || content.content_type === 'google_drive') &&
+      isColabUrl(content.content_value)
+    ) {
+      return resourceCard('colab');
     }
 
     switch (content.content_type) {
@@ -481,31 +474,13 @@ export default function LearnCourse() {
           </div>
         );
       
+      // GitHub sends X-Frame-Options: DENY, so the old iframe here only ever
+      // rendered an empty box. Opening in a new tab is the real behaviour.
       case 'github':
-        return (
-          <div className="w-full h-full flex flex-col">
-            <iframe
-              src={content.content_value}
-              className="w-full h-full border-0"
-              allowFullScreen
-              title={content.title || 'GitHub Repository'}
-            />
-            <div className="mt-2 p-2 bg-secondary/50">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(content.content_value, '_blank')}
-                className="w-full"
-              >
-                <Github className="w-4 h-4 mr-2" />
-                Open in GitHub
-              </Button>
-            </div>
-          </div>
-        );
-      
+        return resourceCard('github');
+
       case 'colab':
-        return renderColabLinkFallback(content.content_value);
+        return resourceCard('colab');
       
       case 'weblink':
         return (
@@ -854,7 +829,13 @@ export default function LearnCourse() {
                           </Badge>
                         </div>
                       </div>
-                      <div className="aspect-video bg-black flex items-center justify-center">
+                      <div
+                        className={
+                          isFramedEmbed(content)
+                            ? 'aspect-video bg-black flex items-center justify-center'
+                            : 'p-4'
+                        }
+                      >
                         {renderContent(content)}
                       </div>
                       {content.description && (

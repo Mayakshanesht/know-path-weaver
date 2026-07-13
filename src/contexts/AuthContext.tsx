@@ -10,6 +10,7 @@ interface AuthContextType {
   loading: boolean;
   userDataLoading: boolean;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
+  resendVerification: (email: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -117,11 +118,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
       options: {
-        emailRedirectTo: 'https://know-path-weaver.vercel.app/login',
+        // Follow whichever origin the user actually signed up on, so the link in
+        // the email works from localhost and preview deploys too. Every origin used
+        // here must be listed in Supabase > Authentication > URL Configuration.
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
-          full_name: fullName
-        }
-      }
+          full_name: fullName,
+        },
+      },
+    });
+    return { error };
+  };
+
+  const resendVerification = async (email: string) => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
     return { error };
   };
@@ -129,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
-      password
+      password,
     });
     return { error };
   };
@@ -143,7 +156,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, authUser, loading, userDataLoading, signUp, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        authUser,
+        loading,
+        userDataLoading,
+        signUp,
+        resendVerification,
+        signIn,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
