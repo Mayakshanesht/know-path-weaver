@@ -10,19 +10,14 @@
 
 -- ---------------------------------------------------------------------------
 -- Enums
+--
+-- Only the ones this file's own tables need. content_type, quiz_type and
+-- question_type belong to the capsule_content and quiz migrations that run after
+-- this one, and creating them here would collide with their bare CREATE TYPE.
 -- ---------------------------------------------------------------------------
-DO $$ BEGIN CREATE TYPE public.app_role          AS ENUM ('admin', 'student');                      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN CREATE TYPE public.enrollment_status AS ENUM ('pending', 'approved', 'rejected');       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN CREATE TYPE public.quiz_type         AS ENUM ('quiz', 'assignment');                    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN CREATE TYPE public.question_type     AS ENUM ('mcq', 'short_answer', 'true_false', 'multiple_select'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  CREATE TYPE public.content_type AS ENUM
-    ('google_drive', 'youtube', 'github', 'colab', 'weblink', 'text', 'image', 'pdf');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE public.app_role          AS ENUM ('admin', 'student');                EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE public.enrollment_status AS ENUM ('pending', 'approved', 'rejected'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- ---------------------------------------------------------------------------
--- Shared functions
--- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -31,21 +26,6 @@ BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$$;
-
--- SECURITY DEFINER is load-bearing: this is called from inside the RLS policies on
--- user_roles itself, so a plain function would recurse into the policy that calls it.
-CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role public.app_role)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.user_roles
-    WHERE user_id = _user_id AND role = _role
-  );
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -69,6 +49,24 @@ CREATE TABLE IF NOT EXISTS public.user_roles (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (user_id, role)
 );
+
+-- Defined here, after user_roles exists: a LANGUAGE sql body is parsed and its
+-- references resolved at CREATE time, so this cannot be declared any earlier.
+--
+-- SECURITY DEFINER is load-bearing: it is called from inside the RLS policies on
+-- user_roles itself, and a plain function would recurse into the policy calling it.
+CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role public.app_role)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = _user_id AND role = _role
+  );
+$$;
 
 -- Give every new signup a profile and the student role.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
