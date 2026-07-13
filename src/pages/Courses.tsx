@@ -35,6 +35,11 @@ export default function Courses() {
       .from('courses')
       .select('*, learning_paths(*, capsules(*))')
       .eq('is_published', true)
+      // Deliberate order, not creation order. The catalogue is the shop window: the flagship
+      // courses take row one (the grid is three wide), and the short or still-building ones
+      // sit on row two. Ordering by created_at put Motion Planning — 2 lessons, early access
+      // — above ADAS, which is the course that makes the case for all the others.
+      .order('display_order', { ascending: true })
       .order('created_at', { ascending: false });
 
     if (error) {
