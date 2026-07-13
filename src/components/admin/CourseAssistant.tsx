@@ -13,7 +13,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowRight, Loader2, Sparkles } from 'lucide-react';
+import { ArrowRight, FileText, Loader2, Sparkles } from 'lucide-react';
+import { persistOrder } from '@/lib/reorder';
 
 /**
  * Proposes improved titles and descriptions for a course's modules and capsules.
@@ -38,6 +39,14 @@ interface Change {
   currentTitle?: string;
 }
 
+/** A new "what this module covers" lesson, to be created at the top of the module. */
+interface Overview {
+  module_id: string;
+  title: string;
+  body: string;
+  moduleTitle?: string;
+}
+
 export default function CourseAssistant({
   courseId,
   courseTitle,
@@ -56,6 +65,7 @@ export default function CourseAssistant({
   const [running, setRunning] = useState(false);
   const [applying, setApplying] = useState(false);
   const [changes, setChanges] = useState<Change[] | null>(null);
+  const [overviews, setOverviews] = useState<Overview[]>([]);
   const [skipped, setSkipped] = useState('');
   const [accepted, setAccepted] = useState<Set<string>>(new Set());
 
@@ -105,12 +115,23 @@ export default function CourseAssistant({
         currentTitle: currentTitle.get(c.id),
       }));
 
+      const receivedOverviews: Overview[] = (data.overviews ?? []).map((o: Overview) => ({
+        ...o,
+        moduleTitle: currentTitle.get(o.module_id),
+      }));
+
       setChanges(received);
+      setOverviews(receivedOverviews);
       setSkipped(data.skipped ?? '');
       // Pre-ticked: the point is to review a diff, not to click 40 checkboxes.
-      setAccepted(new Set(received.map((c) => c.id)));
+      setAccepted(
+        new Set([
+          ...received.map((c) => c.id),
+          ...receivedOverviews.map((o) => `overview:${o.module_id}`),
+        ])
+      );
 
-      if (received.length === 0) {
+      if (received.length + receivedOverviews.length === 0) {
         toast({
           title: 'Nothing to change',
           description: 'The agent found no lesson it could improve from the evidence.',
@@ -139,13 +160,60 @@ export default function CourseAssistant({
         if (error) throw error;
       }
 
+      // Create the overview lessons: a capsule plus a single text content item, placed
+      // FIRST in the module — an overview after the lessons it describes is pointless.
+      const chosenOverviews = overviews.filter((o) =>
+        accepted.has(`overview:${o.module_id}`)
+      );
+
+      for (const o of chosenOverviews) {
+        const { data: capsule, error: capsuleError } = await supabase
+          .from('capsules')
+          .insert({
+            learning_path_id: o.module_id,
+            title: o.title,
+            description: 'Start here.',
+            order_index: 0,
+          })
+          .select('id')
+          .single();
+
+        if (capsuleError) throw capsuleError;
+
+        const { error: contentError } = await supabase.from('capsule_content').insert({
+          capsule_id: capsule.id,
+          content_type: 'text',
+          title: o.title,
+          content_value: o.body,
+          order_index: 0,
+        });
+
+        if (contentError) throw contentError;
+
+        // Everything else shifts down by one, so the overview actually leads.
+        const { data: siblings } = await supabase
+          .from('capsules')
+          .select('id, order_index')
+          .eq('learning_path_id', o.module_id)
+          .order('order_index');
+
+        const ordered = [
+          capsule.id,
+          ...(siblings ?? []).filter((c) => c.id !== capsule.id).map((c) => c.id),
+        ];
+        await persistOrder('capsules', ordered);
+      }
+
       const mods = chosen.filter((c) => c.kind === 'module').length;
       toast({
         title: 'Applied',
-        description: `${mods} module(s) and ${chosen.length - mods} lesson(s) updated.`,
+        description:
+          `${mods} module(s), ${chosen.length - mods} lesson(s) updated` +
+          (chosenOverviews.length ? `, ${chosenOverviews.length} overview(s) added.` : '.'),
       });
 
       setChanges(null);
+      setOverviews([]);
       onApplied();
       onOpenChange(false);
     } catch (error: any) {
@@ -159,7 +227,11 @@ export default function CourseAssistant({
   };
 
   const hasResults = changes !== null;
-  const total = changes?.length ?? 0;
+  const total = (changes?.length ?? 0) + overviews.length;
+  const allIds = () => [
+    ...(changes ?? []).map((c) => c.id),
+    ...overviews.map((o) => `overview:${o.module_id}`),
+  ];
 
   const Row = ({ c }: { c: Change }) => (
     <label className="flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/40">
@@ -262,11 +334,7 @@ export default function CourseAssistant({
                     variant="ghost"
                     size="sm"
                     onClick={() =>
-                      setAccepted(
-                        accepted.size === total
-                          ? new Set()
-                          : new Set((changes ?? []).map((c) => c.id))
-                      )
+                      setAccepted(accepted.size === total ? new Set() : new Set(allIds()))
                     }
                   >
                     {accepted.size === total ? 'Deselect all' : 'Select all'}
@@ -278,6 +346,46 @@ export default function CourseAssistant({
                     <Row key={c.id} c={c} />
                   ))}
                 </div>
+
+                {overviews.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="pt-2 text-sm font-medium">
+                      New overview lessons ({overviews.length})
+                    </p>
+                    {overviews.map((o) => {
+                      const key = `overview:${o.module_id}`;
+                      return (
+                        <label
+                          key={key}
+                          className="flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/40"
+                        >
+                          <Checkbox
+                            checked={accepted.has(key)}
+                            onCheckedChange={() => toggle(key)}
+                            className="mt-1"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <Badge variant="outline" className="mb-1.5 gap-1 text-xs">
+                              <FileText className="h-3 w-3" />
+                              New lesson
+                            </Badge>
+                            <p className="text-sm font-medium">
+                              {o.title}
+                              {o.moduleTitle && (
+                                <span className="font-normal text-muted-foreground">
+                                  {' '}— first lesson in {o.moduleTitle}
+                                </span>
+                              )}
+                            </p>
+                            <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+                              {o.body}
+                            </p>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {skipped && (
                   <p className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground">
@@ -298,7 +406,13 @@ export default function CourseAssistant({
                   `Apply ${accepted.size} change${accepted.size === 1 ? '' : 's'}`
                 )}
               </Button>
-              <Button variant="outline" onClick={() => setChanges(null)}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setChanges(null);
+                  setOverviews([]);
+                }}
+              >
                 Back
               </Button>
             </div>

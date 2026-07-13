@@ -51,13 +51,38 @@ const SUGGESTIONS_SCHEMA = {
         additionalProperties: false,
       },
     },
+    overviews: {
+      type: 'array',
+      description:
+        'A short "what this module covers" lesson, one per module that would benefit. ' +
+        'Omit a module that already has one, or whose contents you cannot identify.',
+      items: {
+        type: 'object',
+        properties: {
+          module_id: { type: 'string', description: 'The module id, copied exactly.' },
+          title: {
+            type: 'string',
+            description: 'e.g. "What this module covers". Short.',
+          },
+          body: {
+            type: 'string',
+            description:
+              'Markdown, 100-180 words. What the module covers, why it matters, and what ' +
+              'each lesson in it does. Use a bulleted list for the lessons. Reference only ' +
+              'lessons that actually exist in the module.',
+          },
+        },
+        required: ['module_id', 'title', 'body'],
+        additionalProperties: false,
+      },
+    },
     skipped: {
       type: 'string',
       description:
         'One sentence on what you deliberately left alone and why. Empty if nothing.',
     },
   },
-  required: ['changes', 'skipped'],
+  required: ['changes', 'overviews', 'skipped'],
   additionalProperties: false,
 };
 
@@ -67,6 +92,12 @@ interface Change {
   title: string;
   description: string;
   reason: string;
+}
+
+interface Overview {
+  module_id: string;
+  title: string;
+  body: string;
 }
 
 const SYSTEM = `You improve the titles and descriptions of lessons in a paid engineering course on autonomous driving and applied AI.
@@ -80,6 +111,8 @@ You will see, for each lesson, the titles of the files and links actually inside
 - Descriptions must describe what is actually in the lesson. If you do not know, return an empty description rather than a guess.
 - Write plainly, for a working engineer. No marketing language.
 - If a title is already good, do not return it at all.
+
+You also write a short OVERVIEW lesson for each module: what the module covers, why it matters to someone building these systems, and what each lesson in it does. This is grounded work, not filler — you are summarising lessons whose titles you can see. Walk the reader from where the previous module left off into this one, so the course reads as a sequence rather than a pile. Only describe lessons that actually exist in that module. If a module's contents are opaque to you, write no overview for it.
 
 Return ONLY the items you are changing. Anything you omit is left exactly as it is, which is the right outcome whenever you are unsure. Half the value here is what you decline to touch — and you say what you skipped, so a human can go and look.`;
 
@@ -179,11 +212,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
       .join('\n\n');
 
-    const result = await structured<{ changes: Change[]; skipped: string }>(groq(), {
+    // A module that already opens with an overview must not get a second one.
+    const hasOverview = new Set(
+      modules
+        .filter((m) =>
+          ((m.capsules ?? []) as { title: string }[]).some((c) =>
+            /^(overview|what this module covers|about this module|introduction)/i.test(
+              c.title.trim()
+            )
+          )
+        )
+        .map((m) => m.id)
+    );
+
+    const result = await structured<{
+      changes: Change[];
+      overviews: Overview[];
+      skipped: string;
+    }>(groq(), {
       system: SYSTEM,
       schemaName: 'course_suggestions',
       schema: SUGGESTIONS_SCHEMA,
-      maxTokens: 5000,
+      maxTokens: 6000,
       prompt:
         `COURSE: ${course.title}\n` +
         (course.tagline ? `${course.tagline}\n` : '') +
@@ -193,13 +243,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ? `\nCONTEXT FROM THE COURSE AUTHOR (treat as authoritative):\n${context.trim()}\n`
           : '\n(The author gave no extra context. Rely on the evidence below.)\n') +
         `\nSTRUCTURE AND EVIDENCE\n${structureText}\n\n` +
+        (hasOverview.size
+          ? `These modules ALREADY have an overview lesson — write no overview for them: ` +
+            `${[...hasOverview].join(', ')}\n\n`
+          : '') +
         `Return ONLY the modules and capsules you are changing, with ids copied exactly ` +
         `as given. Omit everything you would leave alone — do not invent a subject for a ` +
-        `lesson whose contents you cannot identify from the evidence above.`,
+        `lesson whose contents you cannot identify from the evidence above. Then write an ` +
+        `overview lesson for each module whose lessons you can actually see.`,
     });
 
-    // The ids must exist, or "apply" would write to the wrong row. The model copies
-    // them from the prompt, so a mismatch means it hallucinated one.
+    // Every id must exist, or "apply" would write to (or hang content off) the wrong
+    // row. The model copies them from the prompt, so a mismatch means it invented one.
     const validModules = new Set(modules.map((m) => m.id));
     const validCapsules = new Set(capsuleIds);
 
@@ -207,11 +262,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       c.kind === 'module' ? validModules.has(c.id) : validCapsules.has(c.id)
     );
 
+    const overviews = (result.overviews ?? []).filter(
+      (o) => validModules.has(o.module_id) && !hasOverview.has(o.module_id) && o.body?.trim()
+    );
+
     return res.status(200).json({
       ok: true,
       changes,
+      overviews,
       skipped: result.skipped ?? '',
-      dropped: (result.changes?.length ?? 0) - changes.length,
+      dropped:
+        (result.changes?.length ?? 0) -
+        changes.length +
+        ((result.overviews?.length ?? 0) - overviews.length),
     });
   } catch (error) {
     console.error('improve-course failed:', error);
