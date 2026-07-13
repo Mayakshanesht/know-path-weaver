@@ -47,6 +47,14 @@ interface Invoice {
   period_month: number;
   issued_at: string;
   storage_path: string | null;
+
+  // The tax breakdown, computed when the invoice was issued. The listed price is the total
+  // the buyer paid; base and tax are broken out OF it, never added on top.
+  base_amount: number | null;
+  tax_rate: number | null;
+  tax_amount: number | null;
+  tax_label: string | null;
+  seller_gstin: string | null;
 }
 
 const money = (amount: number, currency: string) =>
@@ -186,9 +194,14 @@ async function renderInvoice(invoice: Invoice): Promise<Uint8Array> {
     y -= 14;
   }
   text(SELLER.email, left, y, 10, false, MUTED);
-  if (SELLER.taxId) {
+
+  // The GSTIN recorded on the invoice at the time it was issued wins over the current env
+  // var: if the number ever changes, an old invoice must keep showing the number that was
+  // actually in force when the sale happened.
+  const gstin = invoice.seller_gstin || SELLER.taxId;
+  if (gstin) {
     y -= 14;
-    text(`Tax ID: ${SELLER.taxId}`, left, y, 10, false, MUTED);
+    text(`GSTIN: ${gstin}`, left, y, 10, false, MUTED);
   }
 
   y -= 46;
@@ -199,17 +212,37 @@ async function renderInvoice(invoice: Invoice): Promise<Uint8Array> {
   y -= 10;
   page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: RULE });
 
+  // The listed price is what the buyer paid; the tax is shown broken out OF it, not added
+  // on top. base + tax must equal the total exactly, or the invoice is not an invoice.
+  const total = Number(invoice.amount);
+  const base = invoice.base_amount != null ? Number(invoice.base_amount) : total;
+  const tax = invoice.tax_amount != null ? Number(invoice.tax_amount) : 0;
+
   y -= 24;
   text(invoice.course_title, left, y, 11);
-  rightText(money(invoice.amount, invoice.currency), y, 11);
+  rightText(money(base, invoice.currency), y, 11);
   y -= 14;
   text('Course enrollment — lifetime access', left, y, 9, false, MUTED);
 
-  y -= 26;
+  y -= 24;
+  text(invoice.tax_label ?? 'Tax', left, y, 10);
+  rightText(money(tax, invoice.currency), y, 10);
+
+  y -= 22;
+  page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: RULE });
+
+  y -= 20;
+  text('Subtotal (excl. tax)', left, y, 10, false, MUTED);
+  rightText(money(base, invoice.currency), y, 10, false, MUTED);
+  y -= 15;
+  text(invoice.tax_label ?? 'Tax', left, y, 10, false, MUTED);
+  rightText(money(tax, invoice.currency), y, 10, false, MUTED);
+
+  y -= 22;
   page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: RULE });
   y -= 26;
   text('Total paid', left, y, 12, true);
-  rightText(money(invoice.amount, invoice.currency), y, 14, true);
+  rightText(money(total, invoice.currency), y, 14, true);
 
   page.drawLine({ start: { x: left, y: 110 }, end: { x: right, y: 110 }, thickness: 1, color: RULE });
   text('Payment received. This invoice is issued for a completed transaction.', left, 92, 9, false, MUTED);
