@@ -16,7 +16,13 @@ export default function ForgotPassword() {
   const [emailSent, setEmailSent] = useState(false);
   const { toast } = useToast();
 
-  const publicSiteUrl = 'https://know-path-weaver.vercel.app';
+  // Send them back to the site they actually came from. This was hard-coded to a different
+  // Vercel alias than the one being advertised, which meant a reset link could land a
+  // learner on a domain they had never seen. The whole V1 migration runs through this flow,
+  // so it has to be the domain they clicked from.
+  const publicSiteUrl =
+    (import.meta as { env?: Record<string, string> }).env?.VITE_PUBLIC_SITE_URL ||
+    window.location.origin;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
