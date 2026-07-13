@@ -8,6 +8,7 @@ import heroVideo from '@/assets/hero.mp4';
 import updatedLogo from '@/assets/KnowGraph Logo.png';
 import ArticlesSection from '@/components/landing/ArticlesSection';
 import BuiltByYou from '@/components/landing/BuiltByYou';
+import HeroShowcase from '@/components/landing/HeroShowcase';
 
 export default function Index() {
   useEffect(() => {
@@ -23,7 +24,7 @@ export default function Index() {
 
   return (
     <>
-    <section className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-50">
+    <section className="relative overflow-hidden bg-slate-950 text-slate-50 lg:min-h-screen">
       {/*
         The hero animation is a light, busy graph — text sat straight on top of it and was
         close to unreadable. It needs to be a background, not a competitor: dimmed hard, then
@@ -56,9 +57,9 @@ export default function Index() {
         <div className="absolute left-1/2 top-1/3 h-72 w-72 -translate-x-1/2 rounded-full bg-fuchsia-500/10 blur-3xl" />
       </div>
 
-      <div className="container mx-auto px-4 py-16 lg:py-24 relative z-10">
+      <div className="container mx-auto px-4 py-12 lg:py-16 relative z-10">
         <div className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
-          <div className="space-y-8">
+          <div className="space-y-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -140,11 +141,31 @@ export default function Index() {
               </Button>
             </motion.div>
 
+          </div>
+
+          {/*
+            The right half of the hero used to be the SAME abstract animation as the
+            background — decoration twice — while the actual proof that these courses are any
+            good sat two screens further down, where nobody scrolled to it. It is now real
+            course output, cycling, in the first viewport.
+          */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+          >
+            <HeroShowcase />
+            <p className="mt-4 text-center text-sm text-slate-400">
+              Sense → Perceive → Predict → Plan → Control → Certify. Taught in that order,
+              because that is the order it has to work in.
+            </p>
+          </motion.div>
+        </div>
             <motion.div
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl"
+              className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4"
             >
               {/*
                 Real, checkable numbers instead of "Rapid adoption" and "Graph-first flow",
@@ -167,47 +188,6 @@ export default function Index() {
                 </div>
               ))}
             </motion.div>
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: 'easeOut' }}
-            className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/60 shadow-2xl shadow-slate-950/40"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-950/70 via-slate-950/40 to-transparent" />
-            <div className="relative h-full w-full">
-              <video
-                src={heroVideo}
-                autoPlay
-                loop
-                muted
-                playsInline
-                aria-hidden="true"
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-950/40 to-slate-950/90" />
-            </div>
-
-            <div className="pointer-events-none absolute left-6 top-6 rounded-full bg-cyan-400/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-cyan-200 shadow-lg shadow-cyan-500/20">
-              Live now
-            </div>
-            <div className="absolute inset-x-6 bottom-6 grid gap-3 rounded-3xl border border-white/10 bg-slate-950/70 p-4 text-sm shadow-2xl shadow-slate-950/20 backdrop-blur-sm">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-slate-300">
-                <div>
-                  <span className="text-xs uppercase tracking-[0.25em] text-slate-400">The pipeline</span>
-                </div>
-                <span className="inline-flex rounded-full bg-cyan-500/15 px-3 py-1 text-xs font-semibold uppercase text-cyan-200">
-                  Certificate included
-                </span>
-              </div>
-              <p className="text-sm font-medium text-white">
-                Sense → Perceive → Predict → Plan → Control → Certify. Taught in that order,
-                because that is the order it has to work in.
-              </p>
-            </div>
-          </motion.div>
-        </div>
       </div>
     </section>
 
