@@ -68,6 +68,22 @@ export default function CourseDetail() {
   const [billingCountry, setBillingCountry] = useState<string>(() => guessCountry());
   const [billingState, setBillingState] = useState<string>('');
 
+  /**
+   * The code the buyer writes in the payment note, so a line on the bank statement can be
+   * matched to exactly one enrolment.
+   *
+   * course.payment_reference_code already existed, but it is per-COURSE — every ADAS buyer
+   * was told to send "ADAS_COURSE_2026", which identifies the course and not the person.
+   * With two courses priced identically, that is not enough to reconcile a payment at all.
+   *
+   * Derived from the user and course ids rather than random, so it is the same every time
+   * they open the page — they may pay now and submit the form ten minutes later.
+   */
+  const paymentCode =
+    authUser && course
+      ? `KG-${authUser.id.replace(/-/g, '').slice(0, 4).toUpperCase()}-${course.id.replace(/-/g, '').slice(0, 4).toUpperCase()}`
+      : '';
+
   useEffect(() => {
     if (courseId) {
       fetchCourseData();
@@ -138,6 +154,19 @@ export default function CourseDetail() {
       return;
     }
 
+    // The UTR is the only thing that ties a line on the bank statement to this person. It
+    // used to be optional, and the receipt was optional too — so an enrolment could arrive
+    // with nothing but a name, and the payment behind it could never be identified.
+    if (!paymentReference.trim() && !receiptFile) {
+      toast({
+        title: 'Payment proof required',
+        description:
+          'Enter your transaction/UTR number, or upload the payment receipt, so we can match your payment.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // Without the buyer's state we cannot tell CGST+SGST from IGST, and the invoice we
     // issue would not be a valid tax invoice.
     if (regionForCountry(billingCountry) === 'india' && !billingState) {
@@ -176,11 +205,18 @@ export default function CourseDetail() {
 
       // billing_country/_region are recorded at the point of sale, the only moment
       // the buyer's location is actually knowable.
+      // The price on screen at the moment of enrolment is the price agreed. Recording it
+      // means a later price change cannot invoice someone for more than they actually paid.
+      const isIndia = regionForCountry(billingCountry) === 'india';
+
       const base = {
         user_id: authUser.id,
         course_id: course.id,
         payment_reference: paymentReference || null,
         payment_receipt_url: receiptUrl,
+        payment_code: paymentCode,
+        amount_paid: isIndia ? course.price_india : course.price_international,
+        currency: isIndia ? 'INR' : 'EUR',
         status: 'pending' as const,
       };
 
@@ -495,6 +531,27 @@ export default function CourseDetail() {
                         </DialogHeader>
 
                         <div className="flex-1 overflow-y-auto space-y-4">
+                          {/*
+                            Shown BEFORE the payment details, because it only helps if they
+                            read it before they pay. Without a per-buyer code in the note, a
+                            UPI credit on the bank statement is a name and an amount — and
+                            with two courses at the same price, that does not identify anyone.
+                          */}
+                          {paymentCode && (
+                            <div className="rounded-lg border-2 border-primary/60 bg-primary/5 p-4">
+                              <p className="text-sm font-semibold">
+                                Add this code to your payment note
+                              </p>
+                              <p className="mt-2 select-all font-mono text-xl font-bold tracking-wider text-primary">
+                                {paymentCode}
+                              </p>
+                              <p className="mt-2 text-xs text-muted-foreground">
+                                It is how we match your payment to your account. Paying without it
+                                means we may not be able to find your transaction.
+                              </p>
+                            </div>
+                          )}
+
                           {/* Bank Details */}
                           <div className="p-4 bg-secondary rounded-lg">
                             <h4 className="font-medium mb-3 flex items-center gap-2">
@@ -576,7 +633,7 @@ export default function CourseDetail() {
 
                           {/* Payment Reference */}
                           <div className="space-y-2">
-                            <Label htmlFor="paymentRef">Your Payment Reference</Label>
+                            <Label htmlFor="paymentRef">Transaction / UTR number *</Label>
                             <Input
                               id="paymentRef"
                               placeholder="Transaction ID or UTR number"
@@ -630,7 +687,7 @@ export default function CourseDetail() {
 
                           {/* Receipt Upload */}
                           <div className="space-y-2">
-                            <Label htmlFor="receipt">Payment Receipt (Optional)</Label>
+                            <Label htmlFor="receipt">Payment Receipt (recommended)</Label>
                             <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
                               <input
                                 type="file"
