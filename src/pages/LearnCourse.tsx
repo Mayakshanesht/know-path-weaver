@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { downloadCertificate } from '@/lib/certificate';
 import { Skeleton } from '@/components/ui/skeleton';
 import ExternalResourceCard from '@/components/learn/ExternalResourceCard';
+import { Markdown } from '@/lib/markdown';
 import {
   ChevronLeft,
   ChevronRight,
@@ -506,13 +507,13 @@ export default function LearnCourse() {
           </div>
         );
       
+      // Rendered as Markdown, not dumped into a <pre>. Lesson text is authored in
+      // Markdown, so a monospace block of raw ## and ** is the one thing it must not be.
       case 'text':
         return (
-          <div className="p-6 bg-white dark:bg-gray-900 rounded-lg">
-            <div className="prose prose-sm max-w-none dark:prose-invert">
-              <pre className="whitespace-pre-wrap text-sm">{content.content_value}</pre>
-            </div>
-          </div>
+          <article className="mx-auto max-w-3xl px-1 py-2">
+            <Markdown content={content.content_value} />
+          </article>
         );
       
       case 'image':
@@ -905,31 +906,53 @@ export default function LearnCourse() {
                 </div>
               )}
 
-              {capsuleContent.length === 0 && !quizzes.filter(quiz => 
-                quiz.capsule_id === currentCapsule?.id || 
-                (quiz.capsule_id === null && quiz.quiz_type === 'assignment')
-              ).length && currentCapsule.drive_file_id ? (
-                <Card className="overflow-hidden">
-                  <div className="aspect-video bg-black flex items-center justify-center">
-                    <iframe
-                      src={`https://drive.google.com/file/d/${currentCapsule.drive_file_id}/preview`}
-                      className="w-full h-full border-0"
-                      allowFullScreen
-                      referrerPolicy="no-referrer-when-downgrade"
-                      sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-presentation allow-top-navigation"
-                    />
-                  </div>
-                </Card>
-              ) : (
-                <Card className="overflow-hidden">
-                  <div className="aspect-video bg-black flex items-center justify-center">
-                    <div className="text-center text-white/70">
-                      <BookOpen className="w-16 h-16 mx-auto mb-4" />
-                      <p>No content available</p>
-                    </div>
-                  </div>
-                </Card>
-              )}
+              {/*
+                This ternary was inverted: the "No content available" panel was the ELSE
+                branch, so it rendered whenever the capsule DID have content — a black
+                empty-state box sitting directly underneath the content it had just
+                shown. The empty state belongs only where there is genuinely nothing.
+              */}
+              {(() => {
+                const hasQuiz = quizzes.some(
+                  (quiz) =>
+                    quiz.capsule_id === currentCapsule?.id ||
+                    (quiz.capsule_id === null && quiz.quiz_type === 'assignment')
+                );
+                const isEmpty = capsuleContent.length === 0 && !hasQuiz;
+
+                // Legacy: capsules that predate capsule_content carry a bare Drive id.
+                if (isEmpty && currentCapsule.drive_file_id) {
+                  return (
+                    <Card className="overflow-hidden">
+                      <div className="aspect-video bg-black flex items-center justify-center">
+                        <iframe
+                          src={`https://drive.google.com/file/d/${currentCapsule.drive_file_id}/preview`}
+                          className="w-full h-full border-0"
+                          allowFullScreen
+                          referrerPolicy="no-referrer-when-downgrade"
+                          sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-presentation allow-top-navigation"
+                        />
+                      </div>
+                    </Card>
+                  );
+                }
+
+                if (isEmpty) {
+                  return (
+                    <Card className="border-dashed">
+                      <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <BookOpen className="mb-3 h-10 w-10 text-muted-foreground" />
+                        <p className="font-medium">Nothing here yet</p>
+                        <p className="text-sm text-muted-foreground">
+                          This lesson has no material attached.
+                        </p>
+                      </div>
+                    </Card>
+                  );
+                }
+
+                return null;
+              })()}
 
               {/* Capsule Info */}
               <Card>
