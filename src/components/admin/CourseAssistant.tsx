@@ -28,12 +28,14 @@ import { ArrowRight, Loader2, Sparkles } from 'lucide-react';
  * instructed to leave the capsule alone, and those come back marked unchanged.
  */
 
-interface Suggestion {
+interface Change {
+  kind: 'module' | 'capsule';
   id: string;
   title: string;
   description: string;
-  changed: boolean;
   reason: string;
+  /** Filled in client-side so the diff can show what it is replacing. */
+  currentTitle?: string;
 }
 
 export default function CourseAssistant({
@@ -53,8 +55,8 @@ export default function CourseAssistant({
   const [context, setContext] = useState('');
   const [running, setRunning] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [modules, setModules] = useState<Suggestion[] | null>(null);
-  const [capsules, setCapsules] = useState<Suggestion[] | null>(null);
+  const [changes, setChanges] = useState<Change[] | null>(null);
+  const [skipped, setSkipped] = useState('');
   const [accepted, setAccepted] = useState<Set<string>>(new Set());
 
   const toggle = (id: string) => {
@@ -87,15 +89,28 @@ export default function CourseAssistant({
         throw new Error(data?.error ?? `Failed (${response.status})`);
       }
 
-      const m: Suggestion[] = (data.modules ?? []).filter((s: Suggestion) => s.changed);
-      const c: Suggestion[] = (data.capsules ?? []).filter((s: Suggestion) => s.changed);
+      // Look up what each suggestion is replacing, so the reviewer sees a real diff
+      // rather than a list of assertions.
+      const [{ data: mods }, { data: caps }] = await Promise.all([
+        supabase.from('learning_paths').select('id, title').eq('course_id', courseId),
+        supabase.from('capsules').select('id, title'),
+      ]);
+      const currentTitle = new Map<string, string>([
+        ...(mods ?? []).map((m) => [m.id, m.title] as const),
+        ...(caps ?? []).map((c) => [c.id, c.title] as const),
+      ]);
 
-      setModules(m);
-      setCapsules(c);
+      const received: Change[] = (data.changes ?? []).map((c: Change) => ({
+        ...c,
+        currentTitle: currentTitle.get(c.id),
+      }));
+
+      setChanges(received);
+      setSkipped(data.skipped ?? '');
       // Pre-ticked: the point is to review a diff, not to click 40 checkboxes.
-      setAccepted(new Set([...m, ...c].map((s) => s.id)));
+      setAccepted(new Set(received.map((c) => c.id)));
 
-      if (m.length + c.length === 0) {
+      if (received.length === 0) {
         toast({
           title: 'Nothing to change',
           description: 'The agent found no lesson it could improve from the evidence.',
@@ -114,32 +129,23 @@ export default function CourseAssistant({
   const apply = async () => {
     setApplying(true);
     try {
-      const chosenModules = (modules ?? []).filter((s) => accepted.has(s.id));
-      const chosenCapsules = (capsules ?? []).filter((s) => accepted.has(s.id));
+      const chosen = (changes ?? []).filter((c) => accepted.has(c.id));
 
-      for (const s of chosenModules) {
+      for (const c of chosen) {
         const { error } = await supabase
-          .from('learning_paths')
-          .update({ title: s.title, description: s.description || null })
-          .eq('id', s.id);
+          .from(c.kind === 'module' ? 'learning_paths' : 'capsules')
+          .update({ title: c.title, description: c.description || null })
+          .eq('id', c.id);
         if (error) throw error;
       }
 
-      for (const s of chosenCapsules) {
-        const { error } = await supabase
-          .from('capsules')
-          .update({ title: s.title, description: s.description || null })
-          .eq('id', s.id);
-        if (error) throw error;
-      }
-
+      const mods = chosen.filter((c) => c.kind === 'module').length;
       toast({
         title: 'Applied',
-        description: `${chosenModules.length} module(s) and ${chosenCapsules.length} lesson(s) updated.`,
+        description: `${mods} module(s) and ${chosen.length - mods} lesson(s) updated.`,
       });
 
-      setModules(null);
-      setCapsules(null);
+      setChanges(null);
       onApplied();
       onOpenChange(false);
     } catch (error: any) {
@@ -152,37 +158,34 @@ export default function CourseAssistant({
     setApplying(false);
   };
 
-  const hasResults = modules !== null && capsules !== null;
-  const total = (modules?.length ?? 0) + (capsules?.length ?? 0);
+  const hasResults = changes !== null;
+  const total = changes?.length ?? 0;
 
-  const Row = ({ s, kind }: { s: Suggestion; kind: 'Module' | 'Lesson' }) => (
-    <label
-      key={s.id}
-      className="flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/40"
-    >
+  const Row = ({ c }: { c: Change }) => (
+    <label className="flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/40">
       <Checkbox
-        checked={accepted.has(s.id)}
-        onCheckedChange={() => toggle(s.id)}
+        checked={accepted.has(c.id)}
+        onCheckedChange={() => toggle(c.id)}
         className="mt-1"
       />
       <div className="min-w-0 flex-1">
-        <div className="mb-1 flex items-center gap-2">
-          <Badge variant="outline" className="text-xs">
-            {kind}
-          </Badge>
+        <Badge variant="outline" className="mb-1.5 text-xs">
+          {c.kind === 'module' ? 'Module' : 'Lesson'}
+        </Badge>
+
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          {c.currentTitle && (
+            <span className="text-muted-foreground line-through">{c.currentTitle}</span>
+          )}
+          <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+          <span className="font-medium">{c.title}</span>
         </div>
-        <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-          <span className="text-muted-foreground line-through">
-            {kind === 'Module' ? 'current' : 'current'}
-          </span>
-          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-          <span>{s.title}</span>
-        </p>
-        {s.description && (
-          <p className="mt-1 text-sm text-muted-foreground">{s.description}</p>
+
+        {c.description && (
+          <p className="mt-1.5 text-sm text-muted-foreground">{c.description}</p>
         )}
-        {s.reason && (
-          <p className="mt-1 text-xs italic text-muted-foreground">Evidence: {s.reason}</p>
+        {c.reason && (
+          <p className="mt-1 text-xs italic text-muted-foreground">Evidence: {c.reason}</p>
         )}
       </div>
     </label>
@@ -262,7 +265,7 @@ export default function CourseAssistant({
                       setAccepted(
                         accepted.size === total
                           ? new Set()
-                          : new Set([...(modules ?? []), ...(capsules ?? [])].map((s) => s.id))
+                          : new Set((changes ?? []).map((c) => c.id))
                       )
                     }
                   >
@@ -271,13 +274,16 @@ export default function CourseAssistant({
                 </div>
 
                 <div className="space-y-2">
-                  {(modules ?? []).map((s) => (
-                    <Row key={s.id} s={s} kind="Module" />
-                  ))}
-                  {(capsules ?? []).map((s) => (
-                    <Row key={s.id} s={s} kind="Lesson" />
+                  {(changes ?? []).map((c) => (
+                    <Row key={c.id} c={c} />
                   ))}
                 </div>
+
+                {skipped && (
+                  <p className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground">
+                    <span className="font-medium">Left alone:</span> {skipped}
+                  </p>
+                )}
               </>
             )}
 
@@ -292,13 +298,7 @@ export default function CourseAssistant({
                   `Apply ${accepted.size} change${accepted.size === 1 ? '' : 's'}`
                 )}
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setModules(null);
-                  setCapsules(null);
-                }}
-              >
+              <Button variant="outline" onClick={() => setChanges(null)}>
                 Back
               </Button>
             </div>

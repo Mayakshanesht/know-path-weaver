@@ -19,56 +19,53 @@ import { groq, structured, supabaseAsCaller } from './_lib/groq.js';
 
 export const config = { maxDuration: 120 };
 
+/**
+ * Only the items being CHANGED come back.
+ *
+ * The first version asked for an entry per module and per capsule — 28 for the AI
+ * Bootcamp, 76 for ADAS. That output overran the token ceiling, the JSON truncated
+ * mid-object, and Groq's strict validation rejected the whole response
+ * (json_validate_failed). Returning only the changes cuts the output several-fold and
+ * removes the failure mode entirely: anything absent is simply left alone, which is
+ * also the behaviour we want by default.
+ */
 const SUGGESTIONS_SCHEMA = {
   type: 'object',
   properties: {
-    modules: {
+    changes: {
       type: 'array',
+      description: 'ONLY items you are changing. Omit anything you would leave as it is.',
       items: {
         type: 'object',
         properties: {
-          id: { type: 'string', description: 'The module id, copied exactly from the input.' },
-          title: { type: 'string', description: 'Improved title, or the existing one unchanged.' },
+          kind: { type: 'string', enum: ['module', 'capsule'] },
+          id: { type: 'string', description: 'The id, copied exactly from the input.' },
+          title: { type: 'string' },
           description: {
             type: 'string',
-            description:
-              'One line on what this module is for. Empty string if there is nothing to say.',
+            description: 'One line on what this covers. Empty string if you cannot say.',
           },
-          changed: { type: 'boolean', description: 'False if you are proposing no change.' },
-          reason: {
-            type: 'string',
-            description: 'Short: what evidence supports this. Empty if unchanged.',
-          },
+          reason: { type: 'string', description: 'Short: the evidence for this change.' },
         },
-        required: ['id', 'title', 'description', 'changed', 'reason'],
+        required: ['kind', 'id', 'title', 'description', 'reason'],
         additionalProperties: false,
       },
     },
-    capsules: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'The capsule id, copied exactly from the input.' },
-          title: { type: 'string' },
-          description: { type: 'string', description: 'One line. Empty string if unknown.' },
-          changed: { type: 'boolean' },
-          reason: { type: 'string' },
-        },
-        required: ['id', 'title', 'description', 'changed', 'reason'],
-        additionalProperties: false,
-      },
+    skipped: {
+      type: 'string',
+      description:
+        'One sentence on what you deliberately left alone and why. Empty if nothing.',
     },
   },
-  required: ['modules', 'capsules'],
+  required: ['changes', 'skipped'],
   additionalProperties: false,
 };
 
-interface Suggestion {
+interface Change {
+  kind: 'module' | 'capsule';
   id: string;
   title: string;
   description: string;
-  changed: boolean;
   reason: string;
 }
 
@@ -82,9 +79,9 @@ You will see, for each lesson, the titles of the files and links actually inside
 - A lesson holding many files is a collection of materials. Name it for the collection, not for the first file in it.
 - Descriptions must describe what is actually in the lesson. If you do not know, return an empty description rather than a guess.
 - Write plainly, for a working engineer. No marketing language.
-- If a title is already good, set changed=false and return it unchanged.
+- If a title is already good, do not return it at all.
 
-Half the value here is what you decline to touch.`;
+Return ONLY the items you are changing. Anything you omit is left exactly as it is, which is the right outcome whenever you are unsure. Half the value here is what you decline to touch — and you say what you skipped, so a human can go and look.`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -182,11 +179,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
       .join('\n\n');
 
-    const result = await structured<{ modules: Suggestion[]; capsules: Suggestion[] }>(groq(), {
+    const result = await structured<{ changes: Change[]; skipped: string }>(groq(), {
       system: SYSTEM,
       schemaName: 'course_suggestions',
       schema: SUGGESTIONS_SCHEMA,
-      maxTokens: 4000,
+      maxTokens: 5000,
       prompt:
         `COURSE: ${course.title}\n` +
         (course.tagline ? `${course.tagline}\n` : '') +
@@ -196,12 +193,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ? `\nCONTEXT FROM THE COURSE AUTHOR (treat as authoritative):\n${context.trim()}\n`
           : '\n(The author gave no extra context. Rely on the evidence below.)\n') +
         `\nSTRUCTURE AND EVIDENCE\n${structureText}\n\n` +
-        `Return one entry per module and one per capsule, using the ids exactly as given. ` +
-        `Set changed=false for anything you cannot improve from the evidence. Do not ` +
-        `invent a subject for a lesson whose contents you cannot identify.`,
+        `Return ONLY the modules and capsules you are changing, with ids copied exactly ` +
+        `as given. Omit everything you would leave alone — do not invent a subject for a ` +
+        `lesson whose contents you cannot identify from the evidence above.`,
     });
 
-    return res.status(200).json({ ok: true, ...result });
+    // The ids must exist, or "apply" would write to the wrong row. The model copies
+    // them from the prompt, so a mismatch means it hallucinated one.
+    const validModules = new Set(modules.map((m) => m.id));
+    const validCapsules = new Set(capsuleIds);
+
+    const changes = (result.changes ?? []).filter((c) =>
+      c.kind === 'module' ? validModules.has(c.id) : validCapsules.has(c.id)
+    );
+
+    return res.status(200).json({
+      ok: true,
+      changes,
+      skipped: result.skipped ?? '',
+      dropped: (result.changes?.length ?? 0) - changes.length,
+    });
   } catch (error) {
     console.error('improve-course failed:', error);
     return res.status(500).json({ ok: false, error: String(error) });
