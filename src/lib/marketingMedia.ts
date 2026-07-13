@@ -57,15 +57,18 @@ const CATALOGUE: Array<Omit<MarketingClip, 'url' | 'isVideo'>> = [
     heroBackdrop: true,
     title: 'Instance segmentation on real KITTI frames',
     caption:
-      'Not "these pixels are car" but "this is car #1 and that is car #2" — which is what a planner needs in order to know how many things it has to avoid.',
-    courseMatch: 'Perception',
+      'Not "these pixels are car" but "this is car #1 and that is car #2" — which is what a planner needs in order to know how many things it has to avoid. You build this in the Computer Vision module, on the real KITTI benchmark.',
+    // The KITTI lessons — instance segmentation, tracking and detection — are in the AI
+    // Bootcamp. This clip was pointed at the Perception Lab, which has no KITTI content at
+    // all, so the course page was showing work it does not teach.
+    courseMatch: 'AI Bootcamp',
   },
   {
     key: 'optical-flow',
     heroBackdrop: true,
     title: 'Optical flow — motion, straight from the pixels',
     caption:
-      'RAFT on a KITTI sequence. Every pixel gets a motion vector, which is how a single camera can tell you something is moving, and roughly how fast.',
+      'RAFT on a KITTI sequence. Every pixel gets a motion vector, which is how a single camera can tell you that something is moving, and roughly how fast.',
   },
 
   // --- the plotted animations: the substance, once the footage has earned the attention ---
