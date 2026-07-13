@@ -16,7 +16,18 @@ export interface UserRole {
   created_at: string;
 }
 
+export interface CourseSyllabusData {
+  outcomes?: string[];
+  modules?: { title: string; goal?: string; lectures?: string[] }[];
+  projects?: { name: string; blurb?: string; capstone?: boolean }[];
+  projects_note?: string;
+}
+
 export interface Course {
+  /** One line under the title. Not the description. */
+  tagline?: string | null;
+  /** The marketing syllabus, separate from learning_paths/capsules. */
+  syllabus?: CourseSyllabusData | null;
   id: string;
   title: string;
   description: string | null;

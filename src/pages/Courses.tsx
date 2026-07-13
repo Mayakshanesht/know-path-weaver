@@ -11,9 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BookOpen, ArrowRight, IndianRupee, Euro, Info, CreditCard, QrCode, Mail, Phone } from 'lucide-react';
 import paymentQR from '@/assets/payment_qr_code_cropped.jpeg?url';
-import aiThumb from '@/assets/thumbnails/ai-bootcamp.svg?url';
-import mlThumb from '@/assets/thumbnails/ml-fundamentals.svg?url';
-import roboticsThumb from '@/assets/thumbnails/robotics-projects.svg?url';
+import CourseCover from '@/components/courses/CourseCover';
 
 /** Course, plus the counts computed at fetch time from the nested rows. */
 interface CourseWithCounts extends Course {
@@ -147,46 +145,31 @@ export default function Courses() {
             </motion.div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {courses.map((course, i) => {
-                const curatedMap: Record<string, string> = {
-                  'AI Bootcamp for Autonomous Driving': aiThumb,
-                  'ML Fundamentals': mlThumb,
-                  'Robotics Projects': roboticsThumb,
-                };
-                const curated = curatedMap[course.title as string];
-
-                return (
+              {courses.map((course, i) => (
                   <motion.div
                     key={course.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    whileHover={{ y: -10 }}
-                    transition={{ duration: 0.6, delay: i * 0.05 }}
+                    whileHover={{ y: -6 }}
+                    transition={{ duration: 0.5, delay: i * 0.05 }}
                   >
-                    <Card className="overflow-hidden h-full flex flex-col rounded-[1.75rem] border border-white/10 bg-slate-900/90 shadow-2xl shadow-slate-950/20 transform-gpu transition duration-300 hover:-translate-y-1 hover:shadow-2xl">
-                      <div className="relative h-56 overflow-hidden bg-slate-950/70">
-                        {course.thumbnail_url ? (
-                          <img
-                            src={course.thumbnail_url}
-                            alt={course.title}
-                            loading="lazy"
-                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.src = fallbackCourseImage;
-                            }}
-                          />
-                        ) : curated ? (
-                          <img src={curated} alt={course.title} className="h-full w-full object-cover" />
-                        ) : (
-                          <img
-                            src={fallbackCourseImage}
-                            alt="Course cover"
-                            className="h-full w-full object-cover"
-                          />
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                        <div className="absolute bottom-4 right-4 rounded-full bg-black/60 px-3 py-1 text-xs text-slate-100">{course.capsules_count} lessons</div>
+                    <Card className="group flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-900/90 shadow-2xl shadow-slate-950/20 transition duration-300 hover:border-cyan-400/30">
+                      <div className="relative h-52 overflow-hidden">
+                        {/* Drawn from the course's own subject. No stock photography:
+                            a generic car photo says nothing and every competitor has it. */}
+                        <CourseCover
+                          title={course.title}
+                          className="h-full w-full transition-transform duration-500 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
+                        <div className="absolute bottom-4 left-4 right-4 flex items-center gap-2">
+                          <span className="rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-slate-100 backdrop-blur-sm">
+                            {course.modules_count} modules
+                          </span>
+                          <span className="rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-slate-100 backdrop-blur-sm">
+                            {course.capsules_count} lessons
+                          </span>
+                        </div>
                       </div>
 
                       <CardHeader className="flex-1 pt-5">
@@ -233,8 +216,7 @@ export default function Courses() {
                       </CardFooter>
                     </Card>
                   </motion.div>
-                );
-              })}
+              ))}
             </div>
           )}
         </div>

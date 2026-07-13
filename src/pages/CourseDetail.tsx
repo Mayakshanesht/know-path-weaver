@@ -34,6 +34,8 @@ import {
   Info,
 } from 'lucide-react';
 import paymentQR from '@/assets/payment_qr_code_cropped.jpeg?url';
+import CourseCover from '@/components/courses/CourseCover';
+import CourseSyllabus from '@/components/courses/CourseSyllabus';
 import {
   Select,
   SelectContent,
@@ -299,17 +301,10 @@ export default function CourseDetail() {
                 </div>
               </div>
 
-              {/* Curriculum Preview */}
-              {course.curriculum_preview && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>What You'll Learn</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground whitespace-pre-wrap">{course.curriculum_preview}</p>
-                  </CardContent>
-                </Card>
-              )}
+              {/* The structured syllabus. This used to be a whitespace-pre-wrap dump of a
+                  text field, which is how internal notes ("🔹 Module 0 — Foundations…")
+                  ended up rendered at prospective buyers. */}
+              <CourseSyllabus syllabus={(course as { syllabus?: unknown }).syllabus as never} />
 
               {/* Learning Paths */}
               <Card>
