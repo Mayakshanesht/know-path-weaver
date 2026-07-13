@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { supabaseAdmin, supabaseAsCaller } from './_lib/groq.js';
+import { logoBytes } from './_lib/logo.js';
 
 /**
  * Returns a signed URL for an invoice PDF, rendering it on demand if it does not
@@ -128,7 +129,19 @@ async function renderInvoice(invoice: Invoice): Promise<Uint8Array> {
   };
 
   page.drawRectangle({ x: 0, y: 762, width, height: 80, color: BRAND });
-  page.drawText('KnowGraph', { x: left, y: 795, size: 20, font: bold, color: rgb(1, 1, 1) });
+
+  // The real logo, embedded rather than read from disk — a serverless bundle does not
+  // carry src/assets, so a file read would silently render no logo in production.
+  try {
+    const logo = await doc.embedPng(logoBytes());
+    const logoHeight = 30;
+    const logoWidth = (logo.width / logo.height) * logoHeight;
+    page.drawImage(logo, { x: left, y: 787, width: logoWidth, height: logoHeight });
+  } catch {
+    // A missing logo must never cost someone their invoice.
+    page.drawText('KnowGraph', { x: left, y: 795, size: 20, font: bold, color: rgb(1, 1, 1) });
+  }
+
   page.drawText('INVOICE', {
     x: right - bold.widthOfTextAtSize('INVOICE', 20),
     y: 795,

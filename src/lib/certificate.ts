@@ -1,3 +1,9 @@
+// ?inline forces Vite to emit a base64 data URI rather than a URL. That is required:
+// the certificate SVG is rasterised to PNG through a canvas, and a canvas drawing an
+// SVG that references an external image is tainted — toBlob() then throws and the
+// download silently fails. A data URI keeps the whole thing self-contained.
+import logoDataUri from '@/assets/knowgraph-logo-mark.png?inline';
+
 export interface CertificateData {
   studentName: string;
   courseTitle: string;
@@ -38,15 +44,18 @@ export function createCertificateSvg({
   <rect width="1200" height="850" fill="#f8fafc" />
   <rect x="40" y="40" width="1120" height="770" rx="40" fill="#0f172a" opacity="0.08" />
   <rect x="80" y="80" width="1040" height="690" rx="30" fill="url(#backgroundGradient)" opacity="0.15" />
-  <text x="600" y="170" text-anchor="middle" fill="#111827" font-family="Inter, sans-serif" font-size="42" font-weight="700">Certificate of Completion</text>
 
-  <text x="600" y="260" text-anchor="middle" fill="#475569" font-family="Inter, sans-serif" font-size="22">This certificate is proudly awarded to</text>
-  <text x="600" y="335" text-anchor="middle" fill="#0f172a" font-family="Inter, sans-serif" font-size="56" font-weight="800">${safeStudentName}</text>
+  <image href="${logoDataUri}" x="480" y="118" width="240" height="76" preserveAspectRatio="xMidYMid meet" />
 
-  <text x="600" y="415" text-anchor="middle" fill="#475569" font-family="Inter, sans-serif" font-size="24">for successfully completing</text>
-  <text x="600" y="475" text-anchor="middle" fill="#0f172a" font-family="Inter, sans-serif" font-size="42" font-weight="700">${safeCourseTitle}</text>
+  <text x="600" y="248" text-anchor="middle" fill="#111827" font-family="Inter, sans-serif" font-size="38" font-weight="700" letter-spacing="1">Certificate of Completion</text>
 
-  <text x="600" y="560" text-anchor="middle" fill="#475569" font-family="Inter, sans-serif" font-size="20">Completion Date: ${safeCompletionDate}</text>
+  <text x="600" y="316" text-anchor="middle" fill="#475569" font-family="Inter, sans-serif" font-size="20">This certificate is proudly awarded to</text>
+  <text x="600" y="382" text-anchor="middle" fill="#0f172a" font-family="Inter, sans-serif" font-size="52" font-weight="800">${safeStudentName}</text>
+
+  <text x="600" y="450" text-anchor="middle" fill="#475569" font-family="Inter, sans-serif" font-size="22">for successfully completing</text>
+  <text x="600" y="506" text-anchor="middle" fill="#0f172a" font-family="Inter, sans-serif" font-size="36" font-weight="700">${safeCourseTitle}</text>
+
+  <text x="600" y="566" text-anchor="middle" fill="#475569" font-family="Inter, sans-serif" font-size="18">Completed ${safeCompletionDate}</text>
 
   <line x1="230" y1="610" x2="470" y2="610" stroke="#cbd5e1" stroke-width="2" />
   <text x="350" y="655" text-anchor="middle" fill="#475569" font-family="Inter, sans-serif" font-size="18">Instructor</text>
