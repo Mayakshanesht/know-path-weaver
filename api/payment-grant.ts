@@ -89,11 +89,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const db = supabaseAdmin();
 
-  const { data: course } = await db
+  // DB titles drift from the static catalogue (edited in the admin panel) —
+  // fall back to a distinctive keyword per course.
+  const KEYWORD: Record<string, string> = {
+    'ai': '%AI Bootcamp%',
+    'ai-bootcamp': '%AI Bootcamp%',
+    'autonomous-driving-adas': '%ADAS%',
+    'autonomous-driving': '%ADAS%',
+    'vehicle-control': '%Vehicle Control%',
+    'motion-prediction-planning': '%Motion Prediction%',
+    'motion-planning': '%Motion Prediction%',
+    'cicd-autonomous-systems': '%CI/CD%',
+  };
+  let { data: course } = await db
     .from('courses')
     .select('id, title')
     .ilike('title', title)
     .maybeSingle();
+  if (!course) {
+    const kw = KEYWORD[body.courseSlug!];
+    if (kw) {
+      const { data: rows } = await db
+        .from('courses')
+        .select('id, title')
+        .ilike('title', kw)
+        .limit(2);
+      if (rows && rows.length === 1) course = rows[0];
+    }
+  }
   if (!course) return res.status(404).json({ error: `no course titled ${title}` });
 
   // find-or-create the auth user for the payment email
