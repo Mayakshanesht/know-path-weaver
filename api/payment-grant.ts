@@ -117,7 +117,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (rows && rows.length === 1) course = rows[0];
     }
   }
-  if (!course) return res.status(404).json({ error: `no course titled ${title}` });
+  if (!course) {
+    // titles are the public catalogue — listing them turns a blind 404
+    // into an actionable one
+    const { data: all } = await db.from('courses').select('title').limit(20);
+    return res.status(404).json({
+      error: `no course titled ${title}`,
+      available: (all ?? []).map((c) => c.title),
+    });
+  }
 
   // find-or-create the auth user for the payment email
   let userId: string | null = null;
