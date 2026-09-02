@@ -31,18 +31,25 @@ export const config = { api: { bodyParser: false } };
 // Marketing-site course slugs -> LMS catalogue titles (courses table has no
 // slug column; titles are the stable key, seeded from src/data/courses.ts).
 const SLUG_TO_TITLE: Record<string, string> = {
-  'ai': 'AI Bootcamp: From Machine Learning to Generative AI',
-  'ai-bootcamp': 'AI Bootcamp: From Machine Learning to Generative AI',
+  'ai': 'AI Bootcamp for Autonomous Driving',
+  'ai-bootcamp': 'AI Bootcamp for Autonomous Driving',
   'autonomous-driving-adas':
-    'Autonomous Driving Bootcamp — End-to-End ADAS Engineering',
+    'Advanced Driver Assistance Systems (ADAS): Engineering & Development',
   'autonomous-driving':
-    'Autonomous Driving Bootcamp — End-to-End ADAS Engineering',
-  'vehicle-control': 'Modern Vehicle Control — PID → LQR → MPC',
-  'motion-prediction-planning':
-    'Motion Prediction & Planning for Autonomous Driving',
-  'motion-planning': 'Motion Prediction & Planning for Autonomous Driving',
+    'Advanced Driver Assistance Systems (ADAS): Engineering & Development',
+  'vehicle-control':
+    'Advanced Vehicle Dynamics & Control: From Modern C++ to Predictive Autonomy',
+  'motion-prediction-planning': 'Advanced Motion Planning for Autonomous Driving',
+  'motion-planning': 'Advanced Motion Planning for Autonomous Driving',
   'cicd-autonomous-systems':
-    'CI/CD for Autonomous Systems — Reliable Edge Deployments',
+    'CI/CD Foundations: From Git Commit to Kubernetes Cluster',
+  'cicd-for-robotics':
+    'CI/CD Foundations: From Git Commit to Kubernetes Cluster',
+  // app courses exist in the LMS catalogue too — a purchase grants both
+  'cv': 'Computer Vision & Generative AI',
+  'computer-vision-generative-ai': 'Computer Vision & Generative AI',
+  'physical-ai': 'Physical AI & Robotics',
+  'physical-ai-robotics': 'Physical AI & Robotics',
 };
 
 function rawBody(req: VercelRequest): Promise<string> {
@@ -96,10 +103,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     'ai-bootcamp': '%AI Bootcamp%',
     'autonomous-driving-adas': '%ADAS%',
     'autonomous-driving': '%ADAS%',
-    'vehicle-control': '%Vehicle Control%',
-    'motion-prediction-planning': '%Motion Prediction%',
-    'motion-planning': '%Motion Prediction%',
+    'vehicle-control': '%Vehicle Dynamics%',
+    'motion-prediction-planning': '%Motion Planning%',
+    'motion-planning': '%Motion Planning%',
     'cicd-autonomous-systems': '%CI/CD%',
+    'cicd-for-robotics': '%CI/CD%',
+    'cv': '%Computer Vision & Generative%',
+    'computer-vision-generative-ai': '%Computer Vision & Generative%',
+    'physical-ai': '%Physical AI%',
+    'physical-ai-robotics': '%Physical AI%',
   };
   let { data: course } = await db
     .from('courses')
