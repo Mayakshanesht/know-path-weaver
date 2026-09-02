@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/select';
 import { COUNTRIES, INDIAN_STATES, guessCountry, regionForCountry } from '@/lib/countries';
 import { clipForCourse } from '@/lib/marketingMedia';
+import { payWithRazorpay } from '@/lib/razorpay';
 
 interface LearningPathWithCapsules extends LearningPath {
   capsules: Capsule[];
@@ -62,6 +63,36 @@ export default function CourseDetail() {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
+  const [payingOnline, setPayingOnline] = useState(false);
+
+  const handlePayOnline = async () => {
+    if (!course || !authUser) return;
+    setPayingOnline(true);
+    try {
+      const result = await payWithRazorpay({
+        courseId: course.id,
+        region: regionForCountry(billingCountry) === 'india' ? 'india' : 'international',
+        billingCountry,
+        billingState,
+      });
+      if (result.status === 'paid') {
+        toast({
+          title: 'Enrolled!',
+          description: 'Payment received — the course is unlocked. Happy learning!',
+        });
+        setEnrollDialogOpen(false);
+        window.location.reload();
+      } else if (result.status === 'failed') {
+        toast({
+          title: 'Payment failed',
+          description: result.error ?? 'You have not been charged.',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setPayingOnline(false);
+    }
+  };
   const [paymentReference, setPaymentReference] = useState('');
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
@@ -759,8 +790,23 @@ export default function CourseDetail() {
 
                         <div className="mt-auto pt-4 border-t space-y-4">
                           <Button
+                            onClick={handlePayOnline}
+                            disabled={payingOnline || !authUser}
+                            className="w-full"
+                          >
+                            {payingOnline ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Opening secure checkout…
+                              </>
+                            ) : (
+                              'Pay online — card / UPI (instant access)'
+                            )}
+                          </Button>
+                          <Button
                             onClick={handleEnroll}
                             disabled={enrolling}
+                            variant="outline"
                             className="w-full"
                           >
                             {enrolling ? (
@@ -769,7 +815,7 @@ export default function CourseDetail() {
                                 Submitting...
                               </>
                             ) : (
-                              'Submit Enrollment'
+                              'I paid by bank transfer — submit receipt'
                             )}
                           </Button>
 
