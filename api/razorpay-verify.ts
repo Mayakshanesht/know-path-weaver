@@ -86,5 +86,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (upsertErr) return res.status(500).json({ error: upsertErr.message });
 
-  return res.status(200).json({ verified: true, enrolled: true });
+  // Courses that also live in the Knowgraph app unlock there too — keyed by
+  // the buyer's email, applied instantly or parked until they sign in.
+  let appUnlocked = false;
+  const kgSecret = process.env.KG_PAYMENT_SECRET?.trim();
+  const email = userData.user.email;
+  if (kgSecret && email) {
+    try {
+      const { data: c } = await db
+        .from('courses').select('title').eq('id', courseId).maybeSingle();
+      const APP_COURSE: Record<string, string> = {
+        'Computer Vision & Generative AI': 'computer-vision-generative-ai',
+        'Physical AI & Robotics': 'physical-ai-robotics',
+        'CI/CD Foundations: From Git Commit to Kubernetes Cluster':
+          'cicd-foundations',
+      };
+      const appCourseId = c?.title ? APP_COURSE[c.title] : undefined;
+      if (appCourseId) {
+        const kgApi =
+          process.env.KG_API_URL ?? 'https://knowgraph-api.greenlifeai.workers.dev';
+        const fwd = JSON.stringify({
+          type: 'course',
+          userId: `lms:${userData.user.id}`,
+          courseId: appCourseId,
+          amountCents: order.amount ?? 0,
+          email,
+        });
+        const mac = createHmac('sha256', kgSecret).update(fwd).digest('hex');
+        const r2 = await fetch(`${kgApi}/v1/webhooks/payment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Signature': mac },
+          body: fwd,
+        });
+        appUnlocked = r2.ok;
+      }
+    } catch {
+      // LMS enrollment stands; app unlock arrives when they sign in
+    }
+  }
+
+  return res.status(200).json({ verified: true, enrolled: true, appUnlocked });
 }
