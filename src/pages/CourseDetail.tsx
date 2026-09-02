@@ -584,10 +584,9 @@ export default function CourseDetail() {
                           </h4>
                         </div>
                         <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
-                          <li>• Complete payment using bank details below</li>
-                          <li>• Upload payment receipt for verification</li>
-                          <li>• Include reference code: <strong>ADAS_COURSE_2025</strong></li>
-                          <li>• After payment, send confirmation to provided contact</li>
+                          <li>• Secure payment via Razorpay — card, UPI, netbanking</li>
+                          <li>• International cards supported</li>
+                          <li>• Access unlocks instantly after payment</li>
                         </ul>
                       </div>
 
@@ -601,7 +600,8 @@ export default function CourseDetail() {
                         <DialogHeader>
                           <DialogTitle>Complete Payment & Enroll</DialogTitle>
                           <DialogDescription>
-                            Please complete payment using the bank details below, then upload your receipt to enroll.
+                            Pay securely with card, UPI or netbanking — your enrollment
+                            unlocks the moment the payment succeeds.
                           </DialogDescription>
                         </DialogHeader>
 
@@ -612,48 +612,6 @@ export default function CourseDetail() {
                             UPI credit on the bank statement is a name and an amount — and
                             with two courses at the same price, that does not identify anyone.
                           */}
-                          {paymentCode && (
-                            <div className="rounded-lg border-2 border-primary/60 bg-primary/5 p-4">
-                              <p className="text-sm font-semibold">
-                                Add this code to your payment note
-                              </p>
-                              <p className="mt-2 select-all font-mono text-xl font-bold tracking-wider text-primary">
-                                {paymentCode}
-                              </p>
-                              <p className="mt-2 text-xs text-muted-foreground">
-                                It is how we match your payment to your account. Paying without it
-                                means we may not be able to find your transaction.
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Bank Details */}
-                          <div className="p-4 bg-secondary rounded-lg">
-                            <h4 className="font-medium mb-3 flex items-center gap-2">
-                              <CreditCard className="w-5 h-5" />
-                              Bank Transfer Details
-                            </h4>
-                            <div className="grid grid-cols-1 gap-2 text-sm">
-                              <div><span className="font-medium">Account:</span> KnowGraph</div>
-                              <div><span className="font-medium">Holder:</span> Rajendra Dyandev Waghachoure</div>
-                              <div><span className="font-medium">Bank:</span> Pune District Central Co-Op Bank Ltd., Pune</div>
-                              <div><span className="font-medium">Branch:</span> Ranjangaon Sandas</div>
-                              <div><span className="font-medium">A/C:</span> 183001600000130</div>
-                              <div><span className="font-medium">IFSC:</span> HDFC0CPDCCB</div>
-                              <div><span className="font-medium">Ref:</span> ADAS_COURSE_2025</div>
-                            </div>
-                          </div>
-
-                          {course.payment_reference_code && (
-                            <div className="p-4 bg-accent/10 border border-accent/30 rounded-lg">
-                              <h4 className="font-medium mb-1">Reference Code</h4>
-                              <p className="font-mono text-lg">{course.payment_reference_code}</p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Include this in your payment description
-                              </p>
-                            </div>
-                          )}
-
                           {/* Billing country: decides the invoice's tax region. */}
                           <div className="space-y-2">
                             <Label htmlFor="billingCountry">Billing Country *</Label>
@@ -706,42 +664,6 @@ export default function CourseDetail() {
                             </div>
                           )}
 
-                          {/* Payment Reference */}
-                          <div className="space-y-2">
-                            <Label htmlFor="paymentRef">Transaction / UTR number *</Label>
-                            <Input
-                              id="paymentRef"
-                              placeholder="Transaction ID or UTR number"
-                              value={paymentReference}
-                              onChange={(e) => setPaymentReference(e.target.value)}
-                            />
-                          </div>
-
-                          {/* QR Code */}
-                          <div className="p-4 bg-accent/10 rounded-lg border border-accent/30">
-                            <h4 className="font-medium mb-3 text-center flex items-center justify-center gap-2">
-                              <QrCode className="w-5 h-5" />
-                              PhonePay QR Code
-                            </h4>
-                            <div className="mx-auto mb-2 w-full max-w-[380px] rounded-2xl border border-border bg-white p-3">
-                              <img
-                                src={paymentQR}
-                                alt="PhonePe QR code to pay KnowGraph"
-                                // Natural aspect ratio: forcing this into a square box
-                                // letterboxes it and shrinks the QR itself.
-                                className="w-full h-auto rounded-lg"
-                                onError={(e) => {
-                                  console.error('QR image failed to load', e);
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                }}
-                              />
-                            </div>
-                            <p className="text-xs text-muted-foreground text-center">
-                              Scan to pay via PhonePay
-                            </p>
-                          </div>
-
                           {/* Contact Information */}
                           <div className="p-4 bg-muted/30 rounded-lg border border-dashed">
                             <h4 className="font-medium mb-2 text-center flex items-center justify-center gap-2">
@@ -757,33 +679,6 @@ export default function CourseDetail() {
                                 <Phone className="w-3 h-3 text-primary" />
                                 <span>📱 WhatsApp: +91 88305 79377</span>
                               </div>
-                            </div>
-                          </div>
-
-                          {/* Receipt Upload */}
-                          <div className="space-y-2">
-                            <Label htmlFor="receipt">Payment Receipt (recommended)</Label>
-                            <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
-                              <input
-                                type="file"
-                                id="receipt"
-                                accept="image/*,.pdf"
-                                className="hidden"
-                                onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
-                              />
-                              <label htmlFor="receipt" className="cursor-pointer">
-                                {receiptFile ? (
-                                  <div className="flex items-center justify-center gap-2 text-success">
-                                    <CheckCircle2 className="w-5 h-5" />
-                                    <span>{receiptFile.name}</span>
-                                  </div>
-                                ) : (
-                                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                                    <Upload className="w-8 h-8" />
-                                    <span>Click to upload receipt</span>
-                                  </div>
-                                )}
-                              </label>
                             </div>
                           </div>
                         </div>
@@ -803,21 +698,7 @@ export default function CourseDetail() {
                               'Pay online — card / UPI (instant access)'
                             )}
                           </Button>
-                          <Button
-                            onClick={handleEnroll}
-                            disabled={enrolling}
-                            variant="outline"
-                            className="w-full"
-                          >
-                            {enrolling ? (
-                              <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Submitting...
-                              </>
-                            ) : (
-                              'I paid by bank transfer — submit receipt'
-                            )}
-                          </Button>
+
 
                           {!authUser && (
                             <p className="text-sm text-center text-muted-foreground">
