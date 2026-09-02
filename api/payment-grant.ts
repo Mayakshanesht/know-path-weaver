@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { supabaseAdmin } from './_lib/groq.js';
 
 /**
@@ -56,18 +56,22 @@ function rawBody(req: VercelRequest): Promise<string> {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end();
-  const secret = process.env.KG_PAYMENT_SECRET;
+  // trim: a pasted env value often carries an invisible trailing newline
+  const secret = process.env.KG_PAYMENT_SECRET?.trim();
   if (!secret) return res.status(503).json({ error: 'not configured' });
 
   const payload = await rawBody(req);
   const signature = (req.headers['x-signature'] as string) ?? '';
   const expected = createHmac('sha256', secret).update(payload).digest('hex');
+  // secret_fp = first 8 hex of sha256(secret): compares which secret each
+  // side holds without revealing anything about the secret itself
+  const fp = createHash('sha256').update(secret).digest('hex').slice(0, 8);
   try {
     if (!timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) {
-      return res.status(401).json({ error: 'bad signature' });
+      return res.status(401).json({ error: 'bad signature', secret_fp: fp });
     }
   } catch {
-    return res.status(401).json({ error: 'bad signature' });
+    return res.status(401).json({ error: 'bad signature', secret_fp: fp });
   }
 
   const body = JSON.parse(payload) as {
