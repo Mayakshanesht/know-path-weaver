@@ -664,23 +664,6 @@ export default function CourseDetail() {
                             </div>
                           )}
 
-                          {/* Contact Information */}
-                          <div className="p-4 bg-muted/30 rounded-lg border border-dashed">
-                            <h4 className="font-medium mb-2 text-center flex items-center justify-center gap-2">
-                              <Info className="w-4 h-4" />
-                              After Payment Contact
-                            </h4>
-                            <div className="grid grid-cols-1 gap-2 text-xs">
-                              <div className="flex items-center gap-1 justify-center">
-                                <Mail className="w-3 h-3 text-primary" />
-                                <span>📧 mayurwaghchoure1995@gmail.com</span>
-                              </div>
-                              <div className="flex items-center gap-1 justify-center">
-                                <Phone className="w-3 h-3 text-primary" />
-                                <span>📱 WhatsApp: +91 88305 79377</span>
-                              </div>
-                            </div>
-                          </div>
                         </div>
 
                         <div className="mt-auto pt-4 border-t space-y-4">
