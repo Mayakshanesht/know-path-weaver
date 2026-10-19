@@ -81,7 +81,7 @@ export default function AdminPanel() {
                   {pending} {pending === 1 ? 'student is' : 'students are'} waiting for approval.
                 </span>{' '}
                 <span className="text-muted-foreground">
-                  They have paid and cannot open their course until you approve them — check the
+                  Verify the actual bank or gateway payment before approving access. Check the
                   Enrollments tab.
                 </span>
               </p>

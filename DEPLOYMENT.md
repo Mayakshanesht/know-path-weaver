@@ -72,8 +72,13 @@ team name. No real team codes are seeded or fabricated by this change.
    out/in again, and confirm the same seat is retained. Test a Google email outside
    that roster is rejected. Then issue the actual team and committee codes.
 
-The source changes are not a production deployment. Local tests use an isolated
-database and do not create live users, live codes, or financial documents.
+The core release was deployed on 19 October 2026. All three migrations are
+recorded in the production migration ledger, and the course website, marketing
+guides, native-course Worker, browser app and signed Android downloads are live.
+Open `https://courses.knowgraphapp.com/admin?tab=sponsorship` for Coupons.
+The existing owner retains verified email, Google identity and administrator
+roles. Production verification created no invitation codes or learner claims.
+Local tests use an isolated database and create no real financial documents.
 
 ### Percentage discounts
 
@@ -198,8 +203,8 @@ exposes legacy video identifiers; those resources move into protected content.
 Historical OCR-only approvals are preserved in `unverified_access_suspensions`
 and moved to pending. A read-only production audit on 19 October 2026 found zero
 rows with that OCR flag, and nine other approved enrollments without confirmed
-payment. Those nine need review before release: the new content policy will hold
-their access until a real payment is confirmed or they receive legitimate sponsored
+payment. The release moved those nine to pending with exact original snapshots:
+their access awaits real payment confirmation or legitimate sponsored
 access. This is not a finding that they are fraudulent. Keep their evidence and
 verify the actual payment; do not mark them paid merely to bypass the safeguard.
 Legacy-account migration now preserves pending/rejected states and cannot turn a
@@ -207,21 +212,24 @@ receipt-only enrollment into approved access.
 
 ### Course improvements after the access release
 
-The second phase is prepared separately in
+The second phase was deployed after the core access release, from
 `supabase/migrations/20261019020000_course_quality_improvements.sql`.
 Across all six published courses it improves 55 lesson descriptions, corrects
 14 existing text resources and four quiz questions, and adds six study guides
 and 24 formative questions across eight optional quizzes. Existing recordings,
 other resources and historical grades remain in place.
 
-Apply this migration only after the coupon/account/access release. It verifies
+This migration must follow the coupon/account/access release. It verifies
 the audited text and ownership before changing anything; a conflicting edit
 aborts the transaction. It can be re-run without duplicate content. Seven
 published Python examples were executed, including the CI/CD HTTP exercise on
 an automatically selected local port. The authored manifests and primary-source
 references are in `content/`; regenerate with
 `node scripts/prepare-course-quality.mjs --snapshot backup/course-quality-20261019.json --write`
-only against a current audited catalog snapshot.
+only against a current audited catalog snapshot. Production validation preserved
+all 210 existing media resources, all 96 original quizzes and answer keys, and
+all eight existing learner attempts/grades. Restricted before-and-after backups
+and the fourth migration ledger entry are recorded.
 
 ### Verification
 
