@@ -6,10 +6,9 @@ import { checkReceipt } from './verify-receipt.js';
 /**
  * Emails the admin the moment a student applies for a course.
  *
- * A student who has paid and is waiting is the most time-critical thing that happens on this
- * platform: they cannot open anything until someone approves them. Until now nothing told
- * the admin it had happened at all — the database trigger fired into the void because no
- * webhook was configured, so the only signal was remembering to open the admin panel.
+ * An application and its uploaded screenshot are claims to review, never proof
+ * of payment. This route sends a notification and optional OCR diagnostics; it
+ * never approves an enrollment or records a payment.
  *
  * This lives on Vercel rather than in a Supabase edge function because Vercel is what
  * actually deploys here; the edge function in supabase/functions has never been deployable
@@ -50,21 +49,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const record = (req.body?.record ?? {}) as Record<string, unknown>;
-  const enrollmentId = record.id as string | undefined;
+  const payload = (req.body?.record ?? {}) as Record<string, unknown>;
+  const enrollmentId = typeof payload.id === 'string' ? payload.id : undefined;
   if (!enrollmentId) return res.status(400).json({ error: 'No enrollment in payload.' });
-
-  // Only a fresh application needs the admin's attention. A migrated V1 learner arrives
-  // already approved and requires nothing from anyone.
-  if (record.status !== 'pending') {
-    return res.status(200).json({ ok: true, skipped: `status is ${record.status}` });
-  }
 
   const db = createClient(
     process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false } }
   );
+
+  // Fetch authoritative current values. Ignore status, OCR results, and grant
+  // signals included in a webhook payload, which may also be stale on retry.
+  const { data: record, error: recordError } = await db.from('enrollments')
+    .select('id, user_id, course_id, status, access_source, billing_region, payment_code, payment_reference, payment_receipt_url')
+    .eq('id', enrollmentId).maybeSingle();
+  if (recordError) return res.status(500).json({ error: 'Could not load the enrollment for notification.' });
+  if (!record) return res.status(404).json({ error: 'Enrollment not found.' });
+  if (record.status !== 'pending' || record.access_source === 'sponsorship') {
+    return res.status(200).json({ ok: true, skipped: 'Enrollment does not need a payment review.', auto_granted: false });
+  }
 
   const [{ data: course }, { data: profile }] = await Promise.all([
     db.from('courses').select('title, price_india, price_international')
@@ -83,31 +87,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const site = process.env.VITE_PUBLIC_SITE_URL ?? 'https://know-path-weaver.vercel.app';
 
-  /*
-    Read the receipt now, and grant ACCESS if it holds up — so a genuine buyer starts
-    learning immediately rather than waiting for someone to wake up and click Approve.
-
-    It never confirms the PAYMENT. That still needs a human looking at the bank statement,
-    and it is what issues the invoice. Access is optimistic; revenue is not.
-  */
-  let autoGranted = false;
+  // OCR only helps the admin locate the claimed transaction. It cannot change
+  // access, regardless of image consistency or any grant flag in its output.
   let check: Awaited<ReturnType<typeof checkReceipt>> | null = null;
 
   if (record.payment_receipt_url) {
     try {
       check = await checkReceipt(enrollmentId);
-      if (check.grants_access) {
-        const { error: grantError } = await db
-          .from('enrollments')
-          .update({
-            status: 'approved',
-            approved_at: new Date().toISOString(),
-            auto_approved: true,
-            payment_confirmed: false, // still needs the bank statement
-          })
-          .eq('id', enrollmentId);
-        autoGranted = !grantError;
-      }
     } catch (error) {
       // A failed read must never block the enrolment or the email. It just means the admin
       // does what they did before: looks at the receipt themselves.
@@ -118,7 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const rows: Array<[string, unknown]> = [
     ['Student', `${studentName} (${studentEmail})`],
     ['Course', course?.title ?? record.course_id],
-    ['Amount they owe', price],
+    ['Listed course amount', price],
     ['Their payment code', record.payment_code ?? '(none)'],
     ['UTR they entered', record.payment_reference ?? '(none provided)'],
     ['Receipt', record.payment_receipt_url ? `<a href="${esc(record.payment_receipt_url)}">View receipt</a>` : '(none uploaded)'],
@@ -130,20 +116,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     rows.push(['Receipt checks passed', `${check.passed} of ${check.total}`]);
   }
 
-  const headline = autoGranted
-    ? 'Access granted automatically — now check the money arrived'
-    : check
-      ? 'The receipt did not hold up — this one needs you'
-      : 'New enrolment — action needed';
-
-  const subhead = autoGranted
-    ? `The receipt matched the ${price} expected, so ${studentName} can already open the course. ` +
-      'The payment is NOT confirmed and no invoice has been issued. Check your bank statement: ' +
-      'confirm it to issue the invoice, or revoke the access if the money never arrived.'
-    : check
-      ? 'The uploaded receipt did not match what they claimed, so nothing has been granted. ' +
-        'Look at it yourself before approving.'
-      : 'They cannot open the course until you approve them.';
+  const headline = 'New enrolment — verify the actual payment';
+  const subhead = 'This application is pending. A screenshot and matching OCR fields do not prove payment. ' +
+    'Check the actual payment gateway record or bank transaction before approving access and confirming payment. ' +
+    'This notification and receipt check do not grant course access.';
 
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px">
@@ -163,7 +139,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       <p style="margin:24px 0">
         <a href="${site}/admin"
            style="background:#0f172a;color:#fff;padding:11px 18px;border-radius:8px;text-decoration:none;display:inline-block">
-          ${autoGranted ? 'Confirm the payment (or revoke)' : 'Review and approve'}
+          Review the application and actual payment
         </a>
       </p>
       <p style="color:#94a3b8;font-size:12px;margin:0">
@@ -184,16 +160,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       from: `KnowGraph <${smtpUser}>`,
       to: adminEmail,
       replyTo: studentEmail !== 'unknown' ? studentEmail : undefined,
-      subject: autoGranted
-        ? `Access granted (unconfirmed): ${studentName} — ${course?.title ?? 'a course'} (${price})`
-        : `New enrolment needs you: ${studentName} — ${course?.title ?? 'a course'} (${price})`,
+      subject: `Payment review needed: ${studentName} — ${course?.title ?? 'a course'} (${price})`,
       html,
     });
 
     return res.status(200).json({
       ok: true,
       notified: adminEmail,
-      auto_granted: autoGranted,
+      auto_granted: false,
       checks_passed: check ? `${check.passed}/${check.total}` : null,
     });
   } catch (error) {

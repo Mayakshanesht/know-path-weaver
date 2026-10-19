@@ -2,29 +2,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabaseAdmin, supabaseAsCaller } from './_lib/groq.js';
 
 /**
- * Reads a payment receipt image, cross-checks it, and may grant ACCESS on the strength of it.
- *
- * It may NEVER confirm the payment. That distinction is the whole design.
- *
- * A screenshot is not proof of payment — it takes minutes to fake one, and a ₹19,999 course
- * is worth faking. So the two consequences are split:
- *
- *   ACCESS  (status = 'approved')      the OCR may grant this. Being wrong costs a course,
- *                                      and it can be revoked.
- *   MONEY   (payment_confirmed = true) only a human, having seen the bank statement, may set
- *                                      this. It is what issues the GST invoice — and a tax
- *                                      document for a sale that never happened is not
- *                                      something you can quietly take back.
- *
- * So a genuine buyer starts learning immediately instead of waiting, and the admin still
- * reconciles every payment against the bank at their own pace, with a list of exactly which
- * ones are outstanding. If one never lands, revoke it.
- *
- * Access is granted only when the image looks like a receipt AND the amount matches what
- * they were charged. The amount is the check that actually costs money when it is wrong.
- *
- * If you ever want true auto-approval of the MONEY, the answer is not a better OCR model —
- * it is a payment gateway (Razorpay/Stripe) whose webhook is authenticated and authoritative.
+ * Reads a receipt image and stores advisory diagnostics for an administrator.
+ * A matching image can be forged: OCR never grants access or confirms payment.
+ * Access requires a verified payment gateway result, an administrator checking
+ * the actual bank transaction, or a separately authorized sponsorship.
  */
 
 export const config = { maxDuration: 60 };
@@ -90,12 +71,13 @@ const normalise = (v: unknown) => String(v ?? '').toUpperCase().replace(/[^A-Z0-
 export async function checkReceipt(enrollmentId: string) {
   const admin = supabaseAdmin();
 
-  const { data: enrolment } = await admin
+  const { data: enrolment, error: enrollmentError } = await admin
     .from('enrollments')
     .select('id, payment_receipt_url, payment_reference, payment_code, amount_paid, currency, status')
     .eq('id', enrollmentId)
     .maybeSingle();
 
+  if (enrollmentError) throw new Error(`Could not load enrollment: ${enrollmentError.message}`);
   if (!enrolment) throw new Error('Enrollment not found');
   if (!enrolment.payment_receipt_url) throw new Error('This enrolment has no receipt image to read.');
 
@@ -182,9 +164,9 @@ export async function checkReceipt(enrollmentId: string) {
 
   const passed = Object.values(checks).filter((c) => c.ok).length;
 
-  // The image must look like a receipt AND the amount must be right. The amount is the check
-  // that actually costs money when it is wrong, so nothing is granted without it.
-  const grantsAccess = checks.is_a_receipt.ok && checks.amount_matches.ok;
+  // Consistency describes only the pixels. It carries no authority over access
+  // or payment, even when every extracted field matches the submitted claims.
+  const looksConsistent = checks.is_a_receipt.ok && checks.amount_matches.ok;
 
   const result = {
     checked_at: new Date().toISOString(),
@@ -193,11 +175,13 @@ export async function checkReceipt(enrollmentId: string) {
     checks,
     passed,
     total: Object.keys(checks).length,
-    grants_access: grantsAccess,
-    verdict: !grantsAccess ? 'needs_attention' : passed >= 3 ? 'consistent' : 'check_manually',
+    grants_access: false,
+    looks_consistent: looksConsistent,
+    verdict: !looksConsistent ? 'needs_attention' : passed >= 3 ? 'consistent' : 'check_manually',
   };
 
-  await admin.from('enrollments').update({ receipt_check: result }).eq('id', enrolment.id);
+  const { error: saveError } = await admin.from('enrollments').update({ receipt_check: result }).eq('id', enrolment.id);
+  if (saveError) throw new Error(`Could not save receipt diagnostics: ${saveError.message}`);
   return result;
 }
 

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
+import { hasCourseAccess } from '@/lib/course-access';
+import SponsorshipCheckout from '@/components/courses/SponsorshipCheckout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Course, LearningPath, Capsule, Enrollment } from '@/types/database';
 import Navbar from '@/components/layout/Navbar';
@@ -77,8 +79,10 @@ export default function CourseDetail() {
       });
       if (result.status === 'paid') {
         toast({
-          title: 'Enrolled!',
-          description: 'Payment received — the course is unlocked. Happy learning!',
+          title: result.paymentReviewRequired ? 'Payment recorded for review' : 'Enrolled!',
+          description: result.paymentReviewRequired
+            ? 'Your course access is already sponsored. This payment has been recorded for the administrator to review. Contact KnowGraph about reconciliation.'
+            : 'Payment received — the course is unlocked. Happy learning!',
         });
         setEnrollDialogOpen(false);
         window.location.reload();
@@ -127,6 +131,7 @@ export default function CourseDetail() {
 
   const fetchCourseData = async () => {
     setLoading(true);
+    setEnrollment(null);
 
     // Fetch course
     const { data: courseData, error: courseError } = await supabase
@@ -531,26 +536,28 @@ export default function CourseDetail() {
                     </div>
                   </div>
 
+                  {!hasCourseAccess(enrollment) && <SponsorshipCheckout key={`${course.id}:${authUser?.id ?? 'guest'}`} courseId={course.id} initialCountry={billingCountry} onComplete={fetchCourseData} />}
+
                   {/* Enrollment Status */}
                   {enrollment ? (
                     <div className="space-y-4">
-                      {enrollment.status === 'pending' && (
+                      {(enrollment.status === 'pending' || (enrollment.status === 'approved' && !hasCourseAccess(enrollment))) && (
                         <div className="p-4 bg-warning/10 border border-warning/30 rounded-lg">
                           <div className="flex items-center gap-2 text-warning">
                             <AlertCircle className="w-5 h-5" />
                             <span className="font-medium">Pending Approval</span>
                           </div>
                           <p className="text-sm text-muted-foreground mt-1">
-                            Your payment is being verified.
+                            Access starts after the payment is verified. A receipt image does not unlock the course.
                           </p>
                         </div>
                       )}
-                      {enrollment.status === 'approved' && (
+                      {hasCourseAccess(enrollment) && (
                         <div className="space-y-4">
                           <div className="p-4 bg-success/10 border border-success/30 rounded-lg">
                             <div className="flex items-center gap-2 text-success">
                               <CheckCircle2 className="w-5 h-5" />
-                              <span className="font-medium">Enrolled</span>
+                              <span className="font-medium">{enrollment.access_source === 'sponsorship' ? 'Sponsored · nothing to pay' : 'Enrolled'}</span>
                             </div>
                           </div>
                           <Button asChild className="w-full" size="lg">
@@ -580,20 +587,21 @@ export default function CourseDetail() {
                         <div className="flex items-center gap-2 mb-2">
                           <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
                           <h4 className="font-semibold text-yellow-800 dark:text-yellow-200">
-                            Payment Required Before Enrollment
+                            Enroll with a coupon or secure payment
                           </h4>
                         </div>
                         <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
                           <li>• Secure payment via Razorpay — card, UPI, netbanking</li>
                           <li>• International cards supported</li>
                           <li>• Access unlocks instantly after payment</li>
+                          <li>• Have a coupon? Apply it above to check your discount</li>
                         </ul>
                       </div>
 
                       <Dialog open={enrollDialogOpen} onOpenChange={setEnrollDialogOpen}>
                         <DialogTrigger asChild>
                           <Button className="w-full" size="lg">
-                            Pay & Enroll Now
+                            Enroll with payment
                           </Button>
                         </DialogTrigger>
                       <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
@@ -685,7 +693,7 @@ export default function CourseDetail() {
 
                           {!authUser && (
                             <p className="text-sm text-center text-muted-foreground">
-                              <Link to="/login" className="text-primary hover:underline">
+                              <Link to="/login" state={{ from: { pathname: `/courses/${course.id}` } }} className="text-primary hover:underline">
                                 Sign in
                               </Link>{' '}
                               to enroll in this course

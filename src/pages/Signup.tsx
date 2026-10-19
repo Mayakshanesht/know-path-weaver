@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import knowgraphLogo from '@/assets/knowgraph-logo.png';
 import { PasswordStrengthIndicator } from '@/components/auth/PasswordStrengthIndicator';
 import { usePasswordValidation } from '@/hooks/usePasswordValidation';
+import { safeReturnPath, rememberAuthReturn } from '@/lib/auth-navigation';
 
 export default function Signup() {
   const [fullName, setFullName] = useState('');
@@ -22,8 +23,10 @@ export default function Signup() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { signUp } = useAuth();
+  const { signUp, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const destination = safeReturnPath(location.state?.from?.pathname, '/courses');
   const { toast } = useToast();
   const { isValid } = usePasswordValidation(password);
 
@@ -41,9 +44,8 @@ export default function Signup() {
       return;
     }
 
-    const { error } = await signUp(email, password, fullName);
-
-    console.log('Signup result:', { error, email, fullName });
+    rememberAuthReturn(destination);
+    const { error } = await signUp(email, password, fullName, destination);
 
     if (error) {
       console.error('Signup error:', error);
@@ -53,7 +55,6 @@ export default function Signup() {
         variant: "destructive"
       });
     } else {
-      console.log('Signup successful, setting success state');
       setShowSuccess(true);
       toast({
         title: "Account created!",
@@ -65,7 +66,7 @@ export default function Signup() {
   };
 
   const handleGoToLogin = () => {
-    navigate('/login');
+    navigate('/login', { state: { from: { pathname: destination } } });
   };
 
   if (showSuccess) {
@@ -126,6 +127,15 @@ export default function Signup() {
             <CardDescription>Start your learning journey with KnowGraph</CardDescription>
           </CardHeader>
           <CardContent>
+            <Button type="button" variant="outline" className="mb-4 w-full" disabled={isLoading} onClick={async () => {
+              setIsLoading(true);
+              try {
+                const { error } = await signInWithGoogle(destination);
+                if (error) toast({ title: 'Could not start Google sign-in', description: error.message, variant: 'destructive' });
+              } catch (error) {
+                toast({ title: 'Could not start Google sign-in', description: error instanceof Error ? error.message : 'Please try again.', variant: 'destructive' });
+              } finally { setIsLoading(false); }
+            }}>Continue with Google</Button>
             <Alert className="mb-4 border-primary/20 bg-primary/5">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="text-sm">
@@ -203,7 +213,7 @@ export default function Signup() {
           <CardFooter className="flex justify-center">
             <p className="text-sm text-muted-foreground">
               Already have an account?{' '}
-              <Link to="/login" className="text-primary hover:underline font-medium">
+              <Link to="/login" state={{ from: { pathname: destination } }} className="text-primary hover:underline font-medium">
                 Sign in
               </Link>
             </p>

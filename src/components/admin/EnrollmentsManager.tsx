@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { EnrollmentWithUserAndCourse } from '@/types/database';
+import { EnrollmentWithUserAndCourse, Profile } from '@/types/database';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -184,23 +184,33 @@ export default function EnrollmentsManager() {
   }, []);
 
   const fetchEnrollments = async () => {
-    const { data, error } = await supabase
-      .from('enrollments')
-      .select('*, courses(*)')
-      .order('enrolled_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching enrollments:', error);
-      setLoading(false);
-      return;
+    const data: Omit<EnrollmentWithUserAndCourse, 'profiles'>[] = [];
+    for (let offset = 0; ; offset += 500) {
+      const { data: page, error } = await supabase.from('enrollments')
+        .select('*, courses(*)').order('enrolled_at', { ascending: false }).order('id')
+        .range(offset, offset + 499);
+      if (error) {
+        toast({ title: 'Could not load enrollments', description: error.message, variant: 'destructive' });
+        setLoading(false);
+        return;
+      }
+      data.push(...(page ?? []));
+      if (!page || page.length < 500) break;
     }
 
-    // Fetch profiles separately
-    const userIds = [...new Set((data || []).map(e => e.user_id))];
-    const { data: profilesData } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('user_id', userIds);
+    // Batch IDs to stay below URL/row limits for the full team programme.
+    const userIds = [...new Set(data.map(e => e.user_id))];
+    const profilesData: Profile[] = [];
+    for (let offset = 0; offset < userIds.length; offset += 200) {
+      const { data: profiles, error } = await supabase.from('profiles').select('*')
+        .in('user_id', userIds.slice(offset, offset + 200));
+      if (error) {
+        toast({ title: 'Could not load learner profiles', description: error.message, variant: 'destructive' });
+        setLoading(false);
+        return;
+      }
+      profilesData.push(...(profiles ?? []));
+    }
 
     const profilesMap = new Map((profilesData || []).map(p => [p.user_id, p]));
 
@@ -218,17 +228,20 @@ export default function EnrollmentsManager() {
    * not access, and never the receipt OCR.
    */
   const handleConfirmPayment = async (enrollmentId: string) => {
+    if (!confirm('Have you verified the actual payment in your bank statement or payment gateway? A receipt image alone is not payment verification. Confirming will grant access and issue an invoice.')) return;
     setProcessing(true);
     const { error } = await supabase
       .from('enrollments')
       .update({
         payment_confirmed: true,
         payment_confirmed_at: new Date().toISOString(),
+        auto_approved: false,
         status: 'approved',
         approved_at: new Date().toISOString(),
         admin_notes: adminNotes || null,
       })
-      .eq('id', enrollmentId);
+      .eq('id', enrollmentId)
+      .eq('access_source', 'payment');
 
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -259,6 +272,7 @@ export default function EnrollmentsManager() {
         admin_notes: adminNotes || 'Revoked: payment never arrived.',
       })
       .eq('id', enrollmentId)
+      .eq('access_source', 'payment')
       .eq('payment_confirmed', false);
 
     if (error) {
@@ -273,6 +287,7 @@ export default function EnrollmentsManager() {
   };
 
   const handleApprove = async (enrollmentId: string) => {
+    if (!confirm('Have you verified the actual payment in your bank statement or payment gateway? A receipt image alone is not payment verification. Confirming will grant access and issue an invoice.')) return;
     setProcessing(true);
 
     const { error } = await supabase
@@ -282,9 +297,11 @@ export default function EnrollmentsManager() {
         approved_at: new Date().toISOString(),
         payment_confirmed: true,
         payment_confirmed_at: new Date().toISOString(),
+        auto_approved: false,
         admin_notes: adminNotes || null,
       })
-      .eq('id', enrollmentId);
+      .eq('id', enrollmentId)
+      .eq('access_source', 'payment');
 
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -340,6 +357,7 @@ export default function EnrollmentsManager() {
       return;
     }
 
+    if (!confirm(`Have you verified every one of these ${selectedEnrollments.length} payments in the bank statement or gateway? This grants access and issues paid invoices. Receipt images alone are not proof.`)) return;
     setProcessing(true);
 
     const { error } = await supabase
@@ -347,8 +365,13 @@ export default function EnrollmentsManager() {
       .update({
         status: 'approved',
         approved_at: new Date().toISOString(),
+        payment_confirmed: true,
+        payment_confirmed_at: new Date().toISOString(),
+        auto_approved: false,
       })
-      .in('id', selectedEnrollments);
+      .in('id', selectedEnrollments)
+      .eq('access_source', 'payment')
+      .eq('status', 'pending');
 
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -378,6 +401,7 @@ export default function EnrollmentsManager() {
   };
 
   const handleRemoveStudent = async (enrollmentId: string, studentName: string) => {
+    if (enrollments.find(enrollment => enrollment.id === enrollmentId)?.access_source === 'sponsorship') return;
     if (!confirm(`Are you sure you want to remove ${studentName} from this course? This action cannot be undone.`)) {
       return;
     }
@@ -387,7 +411,8 @@ export default function EnrollmentsManager() {
     const { error } = await supabase
       .from('enrollments')
       .delete()
-      .eq('id', enrollmentId);
+      .eq('id', enrollmentId)
+      .eq('access_source', 'payment');
 
     if (error) {
       toast({
@@ -425,7 +450,7 @@ export default function EnrollmentsManager() {
     ones that can still cost you: a forged screenshot lands here and stays here until someone
     looks. No invoice has been issued for any of them.
   */
-  const unreconciled = enrollments.filter((e) => e.status === 'approved' && !e.payment_confirmed);
+  const unreconciled = enrollments.filter((e) => e.status === 'approved' && !e.payment_confirmed && e.access_source !== 'sponsorship');
 
   const StatusBadge = ({ status }: { status: string }) => {
     switch (status) {
@@ -515,7 +540,7 @@ export default function EnrollmentsManager() {
                 >
                   <Eye className="w-4 h-4" />
                 </Button>
-                {enrollment.status === 'approved' && (
+                {enrollment.status === 'approved' && enrollment.access_source !== 'sponsorship' && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -576,12 +601,10 @@ export default function EnrollmentsManager() {
         <Card className="border-amber-500/50 bg-amber-500/5">
           <CardContent className="py-4">
             <p className="font-semibold">
-              {unreconciled.length} learner{unreconciled.length > 1 ? 's have' : ' has'} access,
-              but the payment is not confirmed
+              {unreconciled.length} enrollment{unreconciled.length > 1 ? 's need' : ' needs'} payment verification
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Their receipt looked right, so access was granted automatically and they are
-              studying now. No invoice has been issued. Check these against your bank statement:{' '}
+              These historical approvals have no confirmed payment. Course content remains locked until verified. Check these against your bank statement:{' '}
               <strong>confirm</strong> the ones that arrived (that issues the invoice), and{' '}
               <strong>revoke</strong> any that never did.
             </p>
@@ -745,9 +768,11 @@ export default function EnrollmentsManager() {
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status={selectedEnrollment.status} />
                   {selectedEnrollment.auto_approved && !selectedEnrollment.payment_confirmed && (
-                    <Badge className="bg-amber-500/10 text-amber-600">Access granted by receipt</Badge>
+                    <Badge className="bg-amber-500/10 text-amber-600">Legacy receipt approval · verification required</Badge>
                   )}
-                  {selectedEnrollment.payment_confirmed ? (
+                  {selectedEnrollment.access_source === 'sponsorship' ? (
+                    <Badge className="bg-cyan-500/10 text-cyan-600">Sponsored · 100% discount · no payment due</Badge>
+                  ) : selectedEnrollment.payment_confirmed ? (
                     <Badge className="bg-success/10 text-success">Payment confirmed · invoiced</Badge>
                   ) : (
                     <Badge variant="outline">Payment not confirmed · no invoice</Badge>
@@ -760,7 +785,7 @@ export default function EnrollmentsManager() {
                 the invoice; revoke takes the course back. Revoke is only ever offered while the
                 payment is unconfirmed, so it can never be used on someone who genuinely paid.
               */}
-              {selectedEnrollment.status === 'approved' && !selectedEnrollment.payment_confirmed && (
+              {selectedEnrollment.status === 'approved' && !selectedEnrollment.payment_confirmed && selectedEnrollment.access_source !== 'sponsorship' && (
                 <div className="space-y-3 rounded-lg border border-amber-500/50 bg-amber-500/5 p-3">
                   <p className="text-sm">
                     They are already studying. Check your bank statement for{' '}
@@ -847,7 +872,7 @@ export default function EnrollmentsManager() {
                 </div>
               )}
 
-              {selectedEnrollment.status === 'approved' && (
+              {selectedEnrollment.status === 'approved' && selectedEnrollment.access_source !== 'sponsorship' && (
                 <div className="pt-4 border-t">
                   <Button
                     variant="destructive"

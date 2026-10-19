@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { legacyClient, legacyEnabled } from '@/integrations/supabase/legacy';
 import { Profile, UserRole, AuthUser } from '@/types/database';
+import { safeReturnPath, rememberAuthReturn } from '@/lib/auth-navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -10,9 +11,12 @@ interface AuthContextType {
   authUser: AuthUser | null;
   loading: boolean;
   userDataLoading: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
-  resendVerification: (email: string) => Promise<{ error: Error | null }>;
+  userDataError: string | null;
+  retryUserData: () => Promise<void>;
+  signUp: (email: string, password: string, fullName: string, returnTo?: string) => Promise<{ error: Error | null }>;
+  resendVerification: (email: string, returnTo?: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithGoogle: (returnTo?: string) => Promise<{ error: Error | null }>;
   /** After a failed V2 sign-in: does this account still live on the old project? */
   checkLegacyAccount: (
     email: string,
@@ -36,9 +40,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [userDataLoading, setUserDataLoading] = useState(false);
+  const [userDataError, setUserDataError] = useState<string | null>(null);
+  const currentUserId = useRef<string | null>(null);
+  const authEventVersion = useRef(0);
+  const profileRequestVersion = useRef(0);
 
   const fetchUserData = async (userId: string, email: string) => {
+    const requestVersion = ++profileRequestVersion.current;
+    const isCurrentRequest = () => currentUserId.current === userId
+      && profileRequestVersion.current === requestVersion;
     setUserDataLoading(true);
+    setUserDataError(null);
     try {
       // Fetch profile and roles in parallel
       const [profileResult, rolesResult] = await Promise.all([
@@ -46,9 +58,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         supabase.from('user_roles').select('*').eq('user_id', userId)
       ]);
 
+      if (!isCurrentRequest()) return;
+      if (rolesResult.error) throw new Error('Could not verify your account permissions. Check your connection and retry.');
+      if (profileResult.error) throw new Error('Could not load your account profile. Check your connection and retry.');
+
       const profile = profileResult.data as Profile | null;
       const roles = (rolesResult.data || []) as UserRole[];
       const isAdmin = roles.some(r => r.role === 'admin');
+      if (!isCurrentRequest()) return;
 
       setAuthUser({
         id: userId,
@@ -58,16 +75,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAdmin
       });
     } catch (error) {
-      console.error('Error fetching user data:', error);
-      setAuthUser({
-        id: userId,
-        email,
-        profile: null,
-        roles: [],
-        isAdmin: false,
-      });
+      if (!isCurrentRequest()) return;
+      setUserDataError(error instanceof Error ? error.message : 'Could not verify your account permissions. Check your connection and retry.');
     } finally {
-      setUserDataLoading(false);
+      if (isCurrentRequest()) setUserDataLoading(false);
     }
   };
 
@@ -75,12 +86,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set up auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        authEventVersion.current += 1;
+        currentUserId.current = session?.user.id ?? null;
         setSession(session);
         setUser(session?.user ?? null);
 
         if (session?.user) {
           // Mark auth as ready immediately, fetch profile/roles in background.
-          setAuthUser({
+          setUserDataLoading(true);
+          setAuthUser(previous => previous?.id === session.user.id ? previous : {
             id: session.user.id,
             email: session.user.email || '',
             profile: null,
@@ -90,8 +104,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           fetchUserData(session.user.id, session.user.email || '');
         } else {
+          profileRequestVersion.current += 1;
           setAuthUser(null);
           setUserDataLoading(false);
+          setUserDataError(null);
         }
         setLoading(false);
       }
@@ -99,12 +115,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Then check for existing session
     (async () => {
+      const startedAtVersion = authEventVersion.current;
       const { data: { session } } = await supabase.auth.getSession();
+      if (authEventVersion.current !== startedAtVersion) return;
+      currentUserId.current = session?.user.id ?? null;
       setSession(session);
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        setAuthUser({
+        setUserDataLoading(true);
+        setAuthUser(previous => previous?.id === session.user.id ? previous : {
           id: session.user.id,
           email: session.user.email || '',
           profile: null,
@@ -114,19 +134,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         fetchUserData(session.user.id, session.user.email || '');
       } else {
+        profileRequestVersion.current += 1;
         setAuthUser(null);
         setUserDataLoading(false);
+        setUserDataError(null);
       }
 
       setLoading(false);
     })();
 
     return () => {
+      currentUserId.current = null;
+      authEventVersion.current += 1;
+      profileRequestVersion.current += 1;
       subscription.unsubscribe();
     };
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, password: string, fullName: string, returnTo = '/courses') => {
+    const callback = new URL('/auth/callback', window.location.origin);
+    callback.searchParams.set('next', safeReturnPath(returnTo, '/courses'));
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -134,7 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Follow whichever origin the user actually signed up on, so the link in
         // the email works from localhost and preview deploys too. Every origin used
         // here must be listed in Supabase > Authentication > URL Configuration.
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: callback.toString(),
         data: {
           full_name: fullName,
         },
@@ -143,11 +170,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error };
   };
 
-  const resendVerification = async (email: string) => {
+  const resendVerification = async (email: string, returnTo = '/courses') => {
+    const callback = new URL('/auth/callback', window.location.origin);
+    callback.searchParams.set('next', safeReturnPath(returnTo, '/courses'));
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: callback.toString() },
     });
     return { error };
   };
@@ -156,6 +185,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
+    });
+    return { error };
+  };
+
+  const signInWithGoogle = async (returnTo = '/home') => {
+    const destination = safeReturnPath(returnTo);
+    rememberAuthReturn(destination);
+    const callback = new URL('/auth/callback', window.location.origin);
+    callback.searchParams.set('next', destination);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: callback.toString(),
+        queryParams: { prompt: 'select_account' },
+      },
     });
     return { error };
   };
@@ -231,11 +275,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    currentUserId.current = null;
+    authEventVersion.current += 1;
+    profileRequestVersion.current += 1;
     setUser(null);
     setSession(null);
     setAuthUser(null);
     setUserDataLoading(false);
+    setUserDataError(null);
+  };
+
+  const retryUserData = async () => {
+    if (user && currentUserId.current === user.id) await fetchUserData(user.id, user.email || '');
   };
 
   return (
@@ -246,9 +299,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authUser,
         loading,
         userDataLoading,
+        userDataError,
+        retryUserData,
         signUp,
         resendVerification,
         signIn,
+        signInWithGoogle,
         checkLegacyAccount,
         migrateLegacyAccount,
         signOut,

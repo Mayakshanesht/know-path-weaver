@@ -1,0 +1,429 @@
+[
+  {
+    "course_id": "64c67e86-4327-42e1-bef3-7841c70719d6",
+    "course_title": "AI Bootcamp for Autonomous Driving",
+    "additions": [
+      {
+        "target_capsule_id": "1f54f8da-ce1c-43f5-9edc-da3effd66ad2",
+        "title": "Study guide: evaluate a simulated AEB learning system",
+        "content_type": "text",
+        "content_value": "# Study guide: evaluate a simulated AEB learning system\n\n## Goal and prerequisites\n\nUse the existing ML-based AEB project as a small engineering investigation: can a learned brake decision improve on a declared baseline on held-out simulator episodes? The deliverable is a reproducible evaluation, not a controller ready for a vehicle. Work entirely with offline data and simulation.\n\nYou need Python functions, lists, CSV handling, basic probability and a working understanding of classification. Revisit **Python Basics**, **Data Analysis Basics**, **How Machines Learn** and **Logistic Regression** when those concepts are unfamiliar. A CPU is enough for the calculation below. Existing simulator and neural-network notebooks may have separate dependencies or accelerator requirements; record the actual versions used rather than assuming every environment matches.\n\n## Follow a sequence with evidence at each step\n\n1. In **Foundations of Machine Learning**, write down the prediction target, the features available at decision time and the source of labels. Save a short data dictionary with units.\n2. In **Supervised Machine Learning**, run the AEB project and retain a simple reference rule alongside the learned classifier. Keep speed in metres per second and distance in metres; a silent km/h conversion error changes the physical problem.\n3. In **Motion Prediction and Planning**, identify who consumes the model output. A classifier score is not a trajectory or a brake command. Specify the threshold, command limits, missing-data behavior and execution period separately.\n4. Use **Deep Learning and Reinforcement Learning** for a comparison only after fixing the evaluation protocol. A learned policy still depends on designed observations, rewards and environment rules. Reuse the same held-out scenarios when comparing approaches.\n5. Treat the later vision and generative projects as extensions. An attractive detection result or generated scene does not establish that the braking pipeline handles a hazard correctly.\n\n## Define the experiment before training\n\nCreate an episode table containing `episode_id`, simulator seed, speed, gap, closing speed, label source and split. Nearby frames from the same drive can be strongly related; keep complete episodes in one split. Reserve separate training, validation and final test episodes. Use validation data to select the threshold and freeze it before the final test. MetaDrive explicitly supports distinct scenario sets for training and evaluation in its [environment documentation](https://metadrive-simulator.readthedocs.io/en/latest/rl_environments.html).\n\nFit learned preprocessing on the training partition only. Keep preprocessing and prediction together when using a scikit-learn pipeline; see its [data-leakage guidance](https://scikit-learn.org/stable/common_pitfalls.html). Do not use future collision outcomes as an input feature available to a present-time decision.\n\nIf labels come from a teacher rule, report that fact. Matching a teacher measures imitation of that rule. It does not independently validate the teacher or prove collision avoidance.\n\n## Runnable exercise: why accuracy can mislead\n\nRun this with Python 3; no packages or downloads are needed. Here `1` means the reference label requests braking. These are invented evaluation counts, not measurements from the supplied project.\n\n```python\ntruth = [1] * 10 + [0] * 990\nnever_brake = [0] * 1000\ncandidate = [1] * 8 + [0] * 2 + [1] * 20 + [0] * 970\n\ndef evaluate(labels, predictions):\n    assert len(labels) == len(predictions)\n    tp = sum(y == 1 and p == 1 for y, p in zip(labels, predictions))\n    fn = sum(y == 1 and p == 0 for y, p in zip(labels, predictions))\n    fp = sum(y == 0 and p == 1 for y, p in zip(labels, predictions))\n    tn = sum(y == 0 and p == 0 for y, p in zip(labels, predictions))\n    return {\n        \"accuracy\": (tp + tn) / len(labels),\n        \"recall\": tp / (tp + fn) if tp + fn else None,\n        \"precision\": tp / (tp + fp) if tp + fp else None,\n        \"missed_braking_events\": fn,\n    }\n\nbaseline = evaluate(truth, never_brake)\nresult = evaluate(truth, candidate)\nprint(\"baseline\", baseline)\nprint(\"candidate\", result)\nassert baseline[\"accuracy\"] == 0.99 and baseline[\"recall\"] == 0.0\nassert result[\"missed_braking_events\"] == 2\n```\n\nThe baseline is 99% accurate while missing every positive example. The candidate detects 8 of 10 positives, but only 8 of its 28 brake predictions match positive labels: recall is 0.8 and precision is about 0.286. Neither result alone establishes an acceptable controller. Read the [official metric definitions](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.precision_recall_fscore_support.html), then explain which errors matter for your experiment and why.\n\n## Capstone submission and failure analysis\n\nSubmit the data dictionary, episode split list, environment/version record, baseline, selected model and threshold, runnable evaluation command and a failure table. Inspect at least one false negative, one false positive and one case with missing or delayed inputs. State whether evaluation counts represent frames or independent hazard events; counting many adjacent frames can exaggerate the amount of evidence. Report event counts alongside rates, including how few hazardous episodes were tested.\n\nUse this 100-point rubric: problem/units/label specification (20), split and preprocessing discipline (25), baseline and error analysis (25), reproducibility (20), and an honest statement of limits (10). A result with a lower headline accuracy can earn full marks when its experiment is valid and its limitations are clear. Keep the final test separate even when its result is disappointing."
+      }
+    ],
+    "capsule_updates": [
+      {
+        "id": "dde43f20-164c-47be-a89e-3e131104d6b1",
+        "before_description": "Searching, sorting and pathfinding. The pathfinding here returns later as global planning — this is the same A* wearing different clothes.",
+        "description": "A notebook for practising machine-learning algorithms. Run the examples, identify each learning task and compare assumptions and evaluation metrics with the lecture material."
+      },
+      {
+        "id": "b4e0a008-5ee5-43c8-92d8-db45860a021c",
+        "before_description": "Why an ensemble beats any single model, and when it does not. This is the most reliable free win in applied ML.",
+        "description": "Explore how combining estimators can improve predictive performance, and compare the added complexity and evaluation results with a single-model baseline."
+      },
+      {
+        "id": "3ecebff9-89fb-4799-a437-69b87d4b66a5",
+        "before_description": "The classifier every other classifier is measured against. If your neural network cannot beat it, the network is not the problem.",
+        "description": "Use logistic regression as a classification baseline, then compare its assumptions and held-out performance with more complex models."
+      },
+      {
+        "id": "4523f54c-06f8-48d5-a2b0-e9a67966dffc",
+        "before_description": "An actor-critic agent that learns to drive end to end. No planner, no rules — just reward, and it is unsettling how well it works.",
+        "description": "Train a PPO actor-critic policy in MetaDrive. Examine how the reward, observations, action space and simulator rules shape behavior, then evaluate held-out scenarios."
+      },
+      {
+        "id": "56dd7a30-3797-4d6a-abf9-8114dc9fc1ed",
+        "before_description": "A CNN on a real benchmark, with real class imbalance and real degraded images. The gap between a curated dataset and GTSRB is the gap between a paper and a product.",
+        "description": "Train and evaluate a traffic-sign classifier using GTSRB. Inspect per-class errors and keep evaluation data separate from model and threshold selection."
+      },
+      {
+        "id": "6952ae8a-ebaa-45b0-97ab-4a1b1b8e5aed",
+        "before_description": "Automatic Emergency Braking, trained and driven in the MetaDrive simulator. The first time your model failing means the car hits something.",
+        "description": "Study a machine-learning-based emergency-braking project in MetaDrive, with attention to missed hazards, unnecessary interventions and the limits of simulator evidence."
+      }
+    ],
+    "content_updates": [
+      {
+        "id": "7f42d378-1796-4d9b-bd58-e4b9bc2650e0",
+        "before_content_value": "# Welcome\n\nYou are here to build AI systems for autonomous driving, not to collect algorithms. That distinction shapes everything about how this course is arranged.\n\n## What you will actually do\n\nBy the end you will have trained an emergency braking system that decides when to stop a car, a CNN that reads traffic signs, an RL agent that drives with no hand-written rules at all, a perception stack running on real KITTI data, and six projects on the current frontier — fine-tuned LLMs, an agentic system, a vision-language model reasoning over a driving scene, and controllable image generation.\n\n## How it is arranged\n\nSeven modules, and the order is the argument:\n\n1. **Foundations** — Python, data structures, algorithms, SQL\n2. **Foundations of ML** — how a machine learns anything at all\n3. **Supervised ML** — the classical models, and your first real feature (AEB)\n4. **Motion prediction and planning** — connecting perception to action\n5. **Deep learning and RL** — when hand-written features run out\n6. **Computer vision** — earning the assumption that the car can see\n7. **Multimodal LLMs and generative vision** — where the field is going\n\nEach module opens with a \"What this module covers\" lesson explaining why it follows the one before it. Read those. They are the thread.\n\n## Who this is for\n\nEngineers who can already program and want to build systems. If you are looking for a gentle introduction to AI, this is not it — Module 3 assumes you can wrangle data without being told how.\n\n**Start with Module 1.** If you are already fluent in Python, skim it and move on — but do not skip the algorithms notebook. The pathfinding in it comes back as global planning.",
+        "content_value": "# Welcome\n\nThis course connects programming, machine learning and simulation-based autonomous-driving projects. Its seven technical modules cover programming; ML foundations; supervised learning and a simulated AEB project; prediction and planning; deep learning and reinforcement learning; computer vision; and multimodal/generative AI.\n\nThe catalogue includes lectures, notebooks, project repositories and reference material. Work through the module introductions, run the relevant artifacts and record what you can reproduce in your environment. The accompanying study guide provides a shared evaluation task and submission rubric.\n\nThe projects are learning exercises. A successful notebook, classifier or simulator policy does not establish readiness for road use. Learned policies also depend on designed rewards, observations and environment rules; they are not rule-free systems.\n\nStart with programming foundations if you need Python, data structures or data-analysis practice. Otherwise, check those skills and continue to the ML foundations. Keep a record of dependencies, data splits, baselines and failures as you progress."
+      },
+      {
+        "id": "ca30d049-f6a3-4e05-9cca-1602ed70b232",
+        "before_content_value": "## Start here\n\nClassical ML got you a working AEB. Deep learning is what happens when the features are too complicated to write down by hand — which, for driving, they always are.\n\n- **Deep Learning and Reinforcement Learning — Lecture** — neural networks, then policies that learn by acting\n- **PyTorch: From Foundations to Deployment** — the framework, taken all the way to a deployable model\n- **Traffic Sign Classification (GTSRB)** — a real CNN on a real benchmark\n- **RL Actor-Critic PPO in MetaDrive** — a PPO agent that drives end to end, no hand-written planner anywhere\n\n**Why it matters:** the PPO notebook is the first time you build something with *no explicit rules at all* — the policy is learned from reward. Sitting it directly beside the rule-based pipeline from Module 3 is the point: you should come away able to argue for either.\n\n**Next:** Module 5 goes back to the sensor and asks what the network actually sees.",
+        "content_value": "## Deep learning and reinforcement learning\n\nThe lecture introduces neural networks and policies learned through interaction. The linked PyTorch and GTSRB notebooks provide practice with models and image classification; the MetaDrive PPO project introduces an actor-critic driving policy.\n\nDeep learning can learn useful representations, but it does not remove the need for data checks, suitable targets or careful evaluation. Reinforcement learning depends on the specified observations, actions, rewards and environment dynamics. Review these definitions in the [RL concepts reference](https://spinningup.openai.com/en/latest/spinningup/rl_intro.html).\n\nCompare a learned policy with a declared baseline on the same held-out simulator scenarios. Measure failures and execution requirements as well as reward. Neither learned nor hand-designed control is automatically safer or better for every task.\n\nNext, examine the computer-vision resources and the assumptions introduced when inputs come from images."
+      },
+      {
+        "id": "b1bac4a5-b42a-4e0d-be33-59534b734929",
+        "before_content_value": "# What you have built\n\nLook back at what is now in your repository.\n\n- An **AEB system** that brakes a car in simulation, trained from data\n- A **CNN** that classifies traffic signs on a real benchmark\n- A **PPO agent** that drives end to end, learned entirely from reward\n- A **perception stack** — detection, tracking, segmentation, lane estimation, speed from vision — on real KITTI data\n- **Six frontier projects**: a pretrained and fine-tuned LLM, efficient fine-tuning, an agentic system, a VLM reasoning over a driving scene, and controllable generation\n\nThat is not a portfolio of tutorials. It is a portfolio of systems.\n\n## What to do next\n\n**Put the projects somewhere public.** The PPO agent and the KITTI work are the two that make a hiring manager stop scrolling. A repository with a clear README beats a certificate every time.\n\n**Go deeper where it caught you.** If the AEB and PPO work is what you enjoyed, you are a controls person and did not know it. If KITTI and segmentation held your attention, you are a perception person.\n\n## Where to go from here\n\n**Advanced Driver Assistance Systems (ADAS): Engineering & Development** is the natural next step. This course taught you the AI; ADAS teaches you how it becomes a product — functional safety, ISO 26262, requirements, the V-model, and a Simulink capstone co-simulated against IPG CarMaker. It is the difference between a model that works and a feature that ships, and it is the gap most ML engineers never cross.\n\n**Modern Vehicle Control (PID → LQR → MPC)** is the other direction — if the RL agent made you want to know what a *provably* good controller looks like, that is the course that answers it.\n\nCongratulations. Go and build something.",
+        "content_value": "# Review your evidence\n\nThe course provides projects involving simulated AEB, traffic-sign classification, reinforcement learning, perception and multimodal or generative AI. Before describing a project as complete, check that you can reproduce its run, explain its inputs and outputs, and show evaluation on data or scenarios held out from development.\n\nFor each completed project, keep a README with versions, data permissions, a baseline, metrics and a failure analysis. Clearly distinguish implemented results from planned extensions. Publish only material you have permission to share.\n\nThe ADAS course extends the learning sequence into requirements, architecture, controls and a simulated capstone workflow. The Vehicle Dynamics and Control course provides additional study of PID, LQR and MPC. These methods have different assumptions and validation needs; no method is universally best or automatically safe.\n\nUse the study-guide rubric to choose your next improvement: clearer experiment design, stronger tests, better reproducibility or a more precise account of the limits."
+      }
+    ],
+    "question_updates": [
+      {
+        "id": "00941394-9e1e-40cc-82e2-e34d63a744fb",
+        "before_question_text": "Detection finds objects in a frame. Tracking additionally:",
+        "before_options": {
+          "a": "Improves accuracy",
+          "b": "Associates the same object across frames, giving it an identity and a velocity",
+          "c": "Segments pixels",
+          "d": "Estimates depth"
+        },
+        "before_correct_answer": "b",
+        "before_explanation": "Without identity there is no velocity, and without velocity a planner cannot predict anything. Detection alone is not enough to drive.",
+        "question_text": "Compared with per-frame object detection, multi-object tracking typically adds:",
+        "options": {
+          "a": "A guarantee that every object is detected.",
+          "b": "Associations across frames and temporal state estimates for tracked objects.",
+          "c": "Pixel-perfect segmentation for every object.",
+          "d": "A guarantee of accurate depth for every object."
+        },
+        "correct_answer": "b",
+        "explanation": "Tracking links observations over time and can estimate motion for persistent tracks. Object identity is not a prerequisite for every velocity measurement: Doppler radar can estimate radial velocity. See https://www.mathworks.com/help/radar/ug/doppler-estimation.html."
+      },
+      {
+        "id": "03fb8f77-7cc3-4893-b0b3-e1dcddbf8c1e",
+        "before_question_text": "Why do most production ADAS features use classical ML rather than deep networks?",
+        "before_options": {
+          "a": "They are more accurate",
+          "b": "They are cheaper to run, easier to certify, and often enough",
+          "c": "Deep learning does not work on cars",
+          "d": "They need no data"
+        },
+        "before_correct_answer": "b",
+        "before_explanation": "Latency budgets are hard and the safety case must be arguable. \"It is simpler and it passes\" beats \"it scored higher on the benchmark\".",
+        "question_text": "Which result could justify choosing a classical model over a deep network for a particular ADAS subtask?",
+        "options": {
+          "a": "Classical models are always more accurate.",
+          "b": "The model meets measured task and timing requirements with a simpler validated implementation.",
+          "c": "Deep networks cannot process driving data.",
+          "d": "The model requires no training data or evaluation."
+        },
+        "correct_answer": "b",
+        "explanation": "Select a model using evidence for the specific task and implementation constraints. Neither classical nor deep models are universally superior, and model choice alone does not certify a feature. Compare measured latency and predictive performance; see https://scikit-learn.org/stable/computing/computational_performance.html."
+      },
+      {
+        "id": "05b4dd39-bbdd-4b4b-8808-83456da18b99",
+        "before_question_text": "Most machine learning failures in production are caused by a bug in the model code.",
+        "before_options": null,
+        "before_correct_answer": "false",
+        "before_explanation": "Most are failures of the assumptions underneath — leaked labels, a train/serve skew, a distribution that shifted, a metric that did not measure what anyone cared about. The code is usually fine.",
+        "question_text": "Bug-free model code guarantees reliable predictions in a new driving environment.",
+        "options": null,
+        "correct_answer": "false",
+        "explanation": "A system can fail because the evaluation protocol leaked information, preprocessing differs at inference, or the new data differs from the development distribution. Correct code alone does not establish generalization. See https://scikit-learn.org/stable/common_pitfalls.html."
+      }
+    ],
+    "quizzes": [
+      {
+        "capsule_id": "0730b9ad-1532-4fd0-ad19-f8fc055c7df1",
+        "title": "Engineering check: AEB experiment design",
+        "questions": [
+          {
+            "question_type": "mcq",
+            "question_text": "A simulated drive produces many adjacent frames. Which split best tests performance on new drives?",
+            "options": {
+              "a": "Assign whole drive episodes to separate training, validation and test sets.",
+              "b": "Shuffle all frames and split individual frames at random.",
+              "c": "Put each episode in all three sets to balance conditions.",
+              "d": "Fit preprocessing on every frame, then split episodes."
+            },
+            "correct_answer": "a",
+            "explanation": "Keeping related frames within one partition reduces leakage across development and evaluation. Fit learned preprocessing using training data only.",
+            "points": 1
+          },
+          {
+            "question_type": "mcq",
+            "question_text": "A brake classifier detects 8 reference hazards, misses 2, and produces 20 false alarms. What is its positive-class precision?",
+            "options": {
+              "a": "8/10, or 80%",
+              "b": "20/28, or about 71%",
+              "c": "2/10, or 20%",
+              "d": "8/28, or about 28.6%"
+            },
+            "correct_answer": "d",
+            "explanation": "Precision is true positives divided by all positive predictions: 8/(8+20). Recall is 8/(8+2), a different quantity.",
+            "points": 1
+          },
+          {
+            "question_type": "mcq",
+            "question_text": "A classifier reaches 99% accuracy on data containing 1% hazard labels. What should be checked before calling this useful?",
+            "options": {
+              "a": "Whether accuracy is written to enough decimal places.",
+              "b": "Whether the classifier was trained with a deep network.",
+              "c": "Hazard recall, false alarms and the behavior of a never-brake baseline.",
+              "d": "Whether the test labels can be added to its input features."
+            },
+            "correct_answer": "c",
+            "explanation": "A never-brake classifier is already 99% accurate on this class distribution and has zero hazard recall. Inspect the confusion matrix and event-level failures.",
+            "points": 1
+          },
+          {
+            "question_type": "mcq",
+            "question_text": "A learned AEB model closely matches labels generated by a hand-written stopping rule. What conclusion does this directly support?",
+            "options": {
+              "a": "The model is independently validated as safe for road use.",
+              "b": "The model imitates that teacher on the evaluated data.",
+              "c": "The teacher is correct in all unseen driving conditions.",
+              "d": "Sensor delays and action limits can be ignored."
+            },
+            "correct_answer": "b",
+            "explanation": "Agreement measures imitation of the chosen label source. Independent scenario tests and examination of the teacher assumptions are still needed.",
+            "points": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": "9078b1a0-fc12-4808-ad21-98ed4e94b70c",
+    "course_title": "Advanced Driver Assistance Systems (ADAS): Engineering & Development",
+    "additions": [
+      {
+        "target_capsule_id": "5a1f1b4f-32ff-4f2c-b13a-0064b10474f4",
+        "title": "Capstone brief: requirements and evidence for simulated AEB, ACC and LKA",
+        "content_type": "text",
+        "content_value": "# Capstone brief: requirements and evidence for simulated AEB, ACC and LKA\n\n## Scope and prerequisites\n\nBuild an inspectable simulation exercise linking the course's AEB, ACC and lane-keeping material to requirements and tests. The result is a learning artifact with explicit assumptions, not a certified road-going feature. AEB, ACC and LKA do not by themselves establish autonomous-driving capability: [NHTSA distinguishes driver assistance from higher automation](https://www.nhtsa.gov/vehicle-safety/automated-vehicle-safety).\n\nBefore starting, review the programming primers, supervised-learning/AEB project, motion-planning modules and longitudinal/lateral control lectures. You should be able to read a time series, work with metres and seconds and explain a feedback loop. The existing final project uses MATLAB/Simulink and IPG CarMaker; confirm that you have the required software, licenses and compatible versions. The calculation below requires only Python 3 and remains useful when those tools are unavailable.\n\n## Work from a requirement to an observable result\n\nStart with the **ADAS Requirement Writing Assignment**, attempt it before opening its solution, then compare the assumptions and testability of your statements. For the capstone, give every requirement an identifier, enabling conditions, expected output, timing requirement and test reference. Replace vague wording such as “brake safely” with a bounded statement whose outcome can be measured in the declared model.\n\nA toy example is: “R-AEB-01: in the stationary-target model below, a braking request issued at a 20 m gap with ego speed 10 m/s shall leave at least 2 m clearance, assuming 0.3 s response delay followed by constant 5 m/s² deceleration.” The test must report the actual delay, stopping position and minimum clearance. These are invented classroom parameters, not a recommended AEB calibration.\n\nCreate an interface table for each block: signal name, unit, coordinate frame, timestamp, valid range and invalid-data indication. A range without its age can be misleading. Keep feature activation, controller output and actuator command separate so that an apparently correct controller cannot hide a downstream interface fault.\n\n## Calculate an envelope before tuning\n\nFor a stationary target, level ground, initial speed `v`, response delay `tau` and constant positive braking magnitude `a`, the simplified stopping distance is `v*tau + v*v/(2*a)`. It follows by adding constant-speed travel during delay to the distance obtained by integrating constant deceleration. This model omits tire saturation, grade, changing targets and actuator buildup after the assumed delay.\n\nRun this sweep and inspect which conditions exceed your available gap:\n\n```python\nfrom itertools import product\n\ndef required_gap(v, delay, decel, margin=2.0):\n    assert v >= 0 and delay >= 0 and decel > 0\n    return v * delay + v * v / (2.0 * decel) + margin\n\nassert abs(required_gap(10.0, 0.3, 5.0) - 15.0) < 1e-9\nfor v, delay, decel in product((5.0, 10.0, 15.0), (0.1, 0.3), (3.0, 5.0)):\n    gap = required_gap(v, delay, decel)\n    print(f\"v={v:4.1f} delay={delay:.1f} decel={decel:.1f} required_gap={gap:6.2f} m\")\n```\n\nAt 10 m/s, the stated delay and deceleration require 13 m to stop, or 15 m including the example margin. A physically infeasible test case should be identified as infeasible under these assumptions; changing a controller gain cannot create unavailable braking distance. Extend the sweep to the boundaries just inside and outside each requirement's operating conditions.\n\n## Integrate features and test failures deliberately\n\nImplement an explicit command-arbitration policy. For this exercise, define how an AEB braking request overrides an ACC acceleration request, how outputs are bounded and how a feature is inhibited after an invalid input. Document the policy rather than assuming that combining independently working blocks will produce it automatically.\n\nUse the existing planning projects to distinguish route, behavior and local trajectory decisions. Use the control projects to track an admissible reference. Add cases for a stationary lead vehicle, lead-vehicle deceleration, a cut-in, stale range data, missing lane information and command saturation. Parameterized scenario descriptions can make experiments reproducible; [ASAM OpenSCENARIO XML](https://www.asam.net/standards/detail/openscenario-xml/) is a relevant industry standard to explore, but using it is optional here.\n\n## Build an evidence pack, not just a demonstration video\n\nRun model-level tests first. Where the toolchain is available, replay the same inputs against generated code in SIL and compare outputs using stated tolerances. [MathWorks defines SIL as execution of generated code on the development computer](https://www.mathworks.com/help/ecoder/software-in-the-loop-sil-simulation.html). Agreement checks numerical consistency between those implementations; shared model mistakes can still pass. Target-processor execution and hardware effects require additional evidence beyond host SIL, as explained in its [SIL/PIL overview](https://www.mathworks.com/help/ecoder/ug/about-sil-and-pil-simulations.html).\n\nSubmit requirements, interface definitions, architecture/arbitration diagram, test parameters and seeds, recorded traces, pass/fail calculations and a defect log. For each failure, distinguish an incorrect requirement, a poor plant assumption, a software defect and an integration problem. Include one unresolved limitation and its proposed next experiment.\n\nScore the work out of 100: measurable requirements and traceability (25), interfaces and arbitration (20), boundary/fault tests (25), reproducible results or justified tool limitations (20), and thoughtful failure analysis (10). A passing classroom rubric is not a functional-safety assessment or permission to test on public roads."
+      }
+    ],
+    "capsule_updates": [
+      {
+        "id": "03e180d1-7eed-443b-b871-3e5b3caa7594",
+        "before_description": "A PPO agent that learns to drive from reward alone. Nothing here is hand-written — no rules, no planner — so hold it against the rule-based stack you build next and be ready to argue for either.",
+        "description": "Explore a PPO driving policy in MetaDrive. Compare its reward, observations and held-out scenario performance with a declared baseline; simulator success does not establish road readiness."
+      },
+      {
+        "id": "41c43401-5bd9-443e-ad19-b764a7223ed0",
+        "before_description": "Build the test harness, run model- and software-in-the-loop tests, then generate embedded code. This is the step that separates a model that works from a feature that ships.",
+        "description": "Study model-level testing, generated-code execution in SIL and code generation. Compare outputs under stated tolerances and distinguish host-based tests from evidence on target hardware."
+      }
+    ],
+    "content_updates": [
+      {
+        "id": "cb70d306-eaaf-4a8f-a5e8-3fc292b4efea",
+        "before_content_value": "# Welcome\n\nThis course is about how ADAS systems are actually built — not how they are described in a paper.\n\n## What you will actually do\n\nEleven projects and a capstone. You will build Automatic Emergency Braking from data, classify traffic signs with a CNN, train an RL agent to drive, assemble a full three-layer planning stack (A* → FSM → lattice planner), write an Adaptive Cruise Controller in C++, and finish by building AEB, ACC and Lane Keep Assist in Simulink, co-simulated against IPG CarMaker and validated with MIL/SIL testing and generated embedded code.\n\n## How it is arranged\n\nThirteen modules, following the shape of the real thing:\n\n**Foundations** → the lab and toolchain, then the programming\n**Perception** → machine learning, deep learning, reinforcement learning\n**Planning** → route, behaviour, trajectory\n**Implementation** → modern C++, the language it ships in\n**Control** → longitudinal, then lateral vehicle dynamics\n**Safety** → ISO 26262, the V-model, and why any of this is allowed on a road\n**Capstone** → all of it, run as an industry workflow\n\nEach module opens with a \"What this module covers\" lesson explaining why it follows the last. That thread is the course.\n\n## Who this is for\n\nEngineers who want to work on ADAS as it is practised, with the process and the safety case, not just the algorithms. Set up MATLAB and IPG CarMaker in Module 1 — the capstone depends on it, and you do not want to discover that in week eleven.\n\n**Start with Module 1.**",
+        "content_value": "# Welcome\n\nThis course introduces an ADAS development workflow through programming, machine learning, prediction/planning, C++, vehicle dynamics, functional-safety concepts and a simulation-based capstone.\n\nThe listed projects include ML-based AEB, image classification, PPO in MetaDrive, planning, ACC in C++ and a final AEB/ACC/LKA workflow using Simulink and IPG CarMaker. Treat these as opportunities to build and evaluate engineering examples; completing them does not establish a production safety case or deployment approval.\n\nStart with the SDV lab material and confirm access to the software required for your chosen projects. The final co-simulation and code-generation exercises depend on the relevant licensed products and compatible versions. Keep your tool versions and assumptions with your work.\n\nUse the capstone brief on this page to connect requirements, interfaces, controller behavior and test evidence. Review each module introduction before the lecture and project resources. If you already know a foundation topic, demonstrate the prerequisite skill before moving ahead."
+      },
+      {
+        "id": "6a1e6768-7065-4463-9e19-f794670e0d5c",
+        "before_content_value": "## Start here\n\nThe part that separates a demo from a product.\n\n- **Functional safety — a high-level overview** — hazard analysis, ASIL, the V-model\n- **Functional safety — implementation steps** — what it actually demands of your code and your process\n\n**Why it matters:** ISO 26262 is why ADAS engineering looks nothing like ML engineering. You cannot ship a feature because it performed well on a test set; you have to argue it is safe, and be able to show the argument. Nearly every ADAS interview goes here.\n\n**Next:** the capstone — all of it, at once.",
+        "content_value": "## Systems engineering and functional-safety concepts\n\nThese introductory resources cover hazard analysis, ASIL concepts, the V-model and implementation activities associated with functional safety. Use them to connect a feature's intended behavior to its hazards, requirements and verification evidence.\n\nA high score on an ML test set is only one kind of evidence. It does not establish that interfaces, fault handling, operating assumptions or the complete feature are adequate. Likewise, a short course overview is not a complete interpretation of ISO 26262 or a certification assessment.\n\nBefore the capstone, identify the boundaries of your simulated system, record assumptions and write requirements that a test can evaluate. The next module provides the requirements exercise and a model-based workflow in which to practise those skills."
+      },
+      {
+        "id": "52932f29-a468-49e4-a146-04de18886745",
+        "before_content_value": "## Start here\n\nEverything the course has covered, run as an industry workflow: **Requirements → Architecture → Control → MIL/SIL validation**.\n\n- **Requirements writing assignment**, with a worked solution — where real feature development actually begins\n- **Capstone Project 11 — AEB, ACC and LKA in Simulink**, co-simulated against IPG CarMaker\n- **MIL/SIL testing and code generation** — building the test harness, then generating embedded code with Embedded Coder\n\n**Why it matters:** this is Model-Based Design as the industry practises it. The notebooks got you the algorithms; this gets you the process — and the process is what you will be hired to follow.\n\n**Congratulations.** You have taken a feature from requirement to generated code.",
+        "content_value": "## Capstone: requirements, implementation and test evidence\n\nUse the requirements-writing assignment before reading its worked solution. Then study the AEB, ACC and LKA project resources, the IPG CarMaker co-simulation example and the material on MIL/SIL testing and code generation.\n\nKeep a trace from each requirement to its model or code component, test inputs, expected output and recorded result. State the tool versions, licenses and plant assumptions needed to reproduce the work.\n\nModel-level testing evaluates the selected model; SIL additionally executes generated code on the development computer and supports numerical comparison. Neither activity alone establishes correctness on target hardware or safety in the full operating environment. The [MathWorks SIL/PIL overview](https://www.mathworks.com/help/ecoder/ug/about-sil-and-pil-simulations.html) explains the execution distinction.\n\nComplete the accompanying capstone evidence pack and report both passing tests and known limitations."
+      }
+    ],
+    "question_updates": [
+      {
+        "id": "2b3a41bc-f53a-4635-9ecd-57e17693adbe",
+        "before_question_text": "Why do most production ADAS features use classical ML rather than deep networks?",
+        "before_options": {
+          "a": "They are more accurate",
+          "b": "They are cheaper to run, easier to certify, and often enough",
+          "c": "Deep learning does not work on cars",
+          "d": "They need no data"
+        },
+        "before_correct_answer": "b",
+        "before_explanation": "Latency budgets are hard and the safety case must be arguable. \"It is simpler and it passes\" beats \"it scored higher on the benchmark\".",
+        "question_text": "Which result could justify choosing a classical model over a deep network for a particular ADAS subtask?",
+        "options": {
+          "a": "Classical models are always more accurate.",
+          "b": "The model meets measured task and timing requirements with a simpler validated implementation.",
+          "c": "Deep networks cannot process driving data.",
+          "d": "The model requires no training data or evaluation."
+        },
+        "correct_answer": "b",
+        "explanation": "Select a model using evidence for the specific task and implementation constraints. Neither classical nor deep models are universally superior, and model choice alone does not certify a feature. Compare measured latency and predictive performance; see https://scikit-learn.org/stable/computing/computational_performance.html."
+      }
+    ],
+    "quizzes": [
+      {
+        "capsule_id": "717d901c-6dcc-45c0-9514-6e66ac80f4ef",
+        "title": "Engineering check: requirements and capstone evidence",
+        "questions": [
+          {
+            "question_type": "mcq",
+            "question_text": "In the toy stationary-target model, v=10 m/s, response delay=0.3 s and constant deceleration magnitude=5 m/s². What stopping distance excludes the clearance margin?",
+            "options": {
+              "a": "10 m",
+              "b": "13 m",
+              "c": "15 m",
+              "d": "20 m"
+            },
+            "correct_answer": "b",
+            "explanation": "Delay travel is 10×0.3=3 m and braking travel is 10²/(2×5)=10 m, giving 13 m. The exercise adds a separate 2 m clearance margin.",
+            "points": 1
+          },
+          {
+            "question_type": "mcq",
+            "question_text": "A generated controller matches the model in host SIL tests. Which conclusion is supported?",
+            "options": {
+              "a": "All sensor faults are handled safely on the target vehicle.",
+              "b": "The hardware timing requirement is proven for every processor.",
+              "c": "The full feature is certified for road use.",
+              "d": "The tested generated-code outputs match the model within the stated tolerances."
+            },
+            "correct_answer": "d",
+            "explanation": "SIL executes generated code on the development host and supports numerical equivalence testing. Shared model errors and target hardware effects need separate checks.",
+            "points": 1
+          },
+          {
+            "question_type": "mcq",
+            "question_text": "A range signal is stale while ACC is requesting acceleration. Which design action is most defensible?",
+            "options": {
+              "a": "Apply the specified invalid-data response and arbitration policy, then verify it with a fault-injection test.",
+              "b": "Reuse the last range indefinitely without recording its age.",
+              "c": "Assume model accuracy makes the timestamp unnecessary.",
+              "d": "Remove actuator limits so the controller can compensate."
+            },
+            "correct_answer": "a",
+            "explanation": "A valid-data policy, timestamps and explicit arbitration make the expected fault response observable. The appropriate response must be specified for the system, not improvised by combining feature outputs.",
+            "points": 1
+          },
+          {
+            "question_type": "mcq",
+            "question_text": "Which requirement is easiest to verify in a declared simulation model?",
+            "options": {
+              "a": "The car shall always behave like an expert driver.",
+              "b": "Braking shall feel safe in every situation.",
+              "c": "For a stated initial speed, gap, delay and plant model, the test shall measure at least the specified final clearance.",
+              "d": "The feature shall be production quality."
+            },
+            "correct_answer": "c",
+            "explanation": "A bounded requirement names its conditions and measurable outcome. Vague safety or quality claims do not supply a test oracle or an operating envelope.",
+            "points": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": "dd0ce657-1483-4984-9f80-fbb81e41622d",
+    "course_title": "Advanced Vehicle Dynamics & Control: From Modern C++ to Predictive Autonomy",
+    "additions": [
+      {
+        "target_capsule_id": "e6f6a810-e164-4e5e-934e-258acb209ac0",
+        "title": "Study guide: compare vehicle controllers under stated assumptions",
+        "content_type": "text",
+        "content_value": "# Study guide: compare vehicle controllers under stated assumptions\n\n## Goal and preparation\n\nUse the course's ACC, planning, estimation, LQR and MPC projects to produce a controlled comparison. Your question is not “which controller is best?” but “which design meets a stated requirement on this model, with these limits and uncertainties?” Keep the experiments in simulation.\n\nYou need algebra, basic derivatives, matrix multiplication and Python functions. Review the programming resources before modifying a control loop; use the C++ practice material when implementing the ACC project. The Simulink and MATLAB artifacts require the relevant software and licenses. The experiment below runs with Python 3 alone, so every learner can investigate one important failure mode without those tools.\n\n## Study the models before choosing gains\n\nBegin with **Longitudinal Vehicle Dynamics & Linear Controls**. State the input, output, sampling interval and equilibrium. An acceleration-command model differs from a throttle-command model; confusing them changes both units and controller gain interpretation. Reproduce an open-loop response before closing the loop.\n\nFor **Motion Planning & Control**, check whether the planned trajectory is dynamically admissible. In a low-slip kinematic bicycle approximation, curvature is `tan(delta)/L` and lateral acceleration is approximately `v²*tan(delta)/L`, with steering angle `delta` in radians and wheelbase `L` in metres. At fixed steering angle and wheelbase, doubling speed quadruples this predicted lateral acceleration. This approximation does not capture tire saturation or prove that a high-speed maneuver is feasible.\n\nIn the **Lateral Dynamics, Estimation and Optimal Control** module, separate measured signals from estimated states. State what the estimator assumes about process and measurement uncertainty, and inspect the effect of a delayed or biased measurement on the closed loop rather than only plotting a smooth estimate.\n\n## Understand what the optimization actually promises\n\nLQR selects feedback to minimize a specified quadratic cost under a stated linear model; the designer still chooses the state representation and cost weights. The [MathWorks LQR reference](https://www.mathworks.com/help/control/ref/lti.lqr.html) describes the gain and Riccati solution. LQR can account for future cost, and finite-horizon variants exist; it is misleading to describe it as having no view of the future. See the [MIT optimal-control notes](https://underactuated.mit.edu/lqr.html).\n\nStandard unconstrained LQR does not directly enforce hard actuator limits. MPC can include limits in a repeated optimization, but the constraints actually encoded, the plant approximation and solver status determine what is enforced. [MathWorks documents hard and soft MPC constraints](https://www.mathworks.com/help/mpc/ug/specifying-constraints.html). A soft constraint permits penalized violation; an infeasible problem or missed computation deadline requires a defined response. Algorithm names do not provide a universal ranking of safety, speed or effectiveness.\n\n## Runnable exercise: an actuator limit changes the problem\n\nThis toy longitudinal plant has `dv/dt = u - 0.08*v`. Input `u` is a commanded acceleration contribution, clipped to [-3, 2] m/s². A PI controller first requests 15 m/s and then 4 m/s. Compare unrestricted integration with conditional integration. The coefficients are classroom choices, not vehicle calibration values.\n\n```python\ndef run(antiwindup):\n    dt, speed, integral = 0.02, 0.0, 0.0\n    history = []\n    for step in range(1000):\n        time = step * dt\n        reference = 15.0 if time < 8.0 else 4.0\n        error = reference - speed\n        raw = 0.6 * error + 0.4 * integral\n        command = max(-3.0, min(2.0, raw))\n        can_integrate = (\n            -3.0 < raw < 2.0\n            or (raw >= 2.0 and error < 0.0)\n            or (raw <= -3.0 and error > 0.0)\n        )\n        if not antiwindup or can_integrate:\n            integral += error * dt\n        speed = max(0.0, speed + dt * (command - 0.08 * speed))\n        history.append((time, reference, speed, command, integral))\n    return history\n\nfor enabled in (False, True):\n    samples = run(enabled)\n    peak_after_change = max(row[2] for row in samples[400:])\n    assert all(-3.0 <= row[3] <= 2.0 for row in samples)\n    print(enabled, round(peak_after_change, 3), round(samples[-1][2], 3))\n```\n\nThe unrestricted integrator produces a peak of about 15.894 m/s after the reference drops, versus about 11.745 m/s with this conditional-integration implementation. The large stored integral keeps demanding acceleration after the reference change. Plot reference, speed, command and integral to explain the mechanism. [The official anti-windup example](https://www.mathworks.com/help/simulink/slref/anti-windup-control-using-a-pid-controller.html) discusses conditional integration and back-calculation.\n\n## Capstone comparison and failure analysis\n\nExtend an existing project with one nominal case, one actuator-saturation case, one sensor-delay or bias case and one model-parameter change. Keep the reference trajectory, sample interval and initial conditions consistent when comparing designs. Record tracking error, peak command, time spent saturated, computation time and the exact pass/fail limits chosen before tuning. For MPC also record solver status; for state feedback record which states were measured or estimated.\n\nUse the RL project as a further comparison only if its policy and environment can be reproduced. A larger reward does not automatically mean a smaller tracking error or fewer constraint violations. Report metrics that match the same engineering question for all designs.\n\nSubmit model equations and units, reproducible code/version information, controller parameters, scenario definitions, result plots and a failure explanation. Score out of 100: model/interface correctness (25), fair comparison and metrics (25), limit/uncertainty experiments (25), reproducibility (15), and interpretation of assumptions and limits (10). A simulation result establishes behavior in the tested model; it is not a claim about an untested vehicle or operating condition."
+      }
+    ],
+    "capsule_updates": [
+      {
+        "id": "89f71ecd-75a3-44b5-8b3d-f6bda261e51a",
+        "before_description": "LQR on a clean, tractable plant. It does not tune a gain — it solves for the optimal one, and the step from PID to LQR is the step from technician to engineer.",
+        "description": "Apply LQR to an altitude-control model. Define the state, dynamics and quadratic cost weights, then inspect the resulting closed-loop response and its assumptions."
+      },
+      {
+        "id": "8baf91a5-2203-4550-89e9-0c1645e8adfc",
+        "before_description": "A PPO agent that learns the driving policy instead of being given one. Put it beside the PID and planning work you have just done — one is derived and provable, the other is learned and often better.",
+        "description": "Train a PPO policy in MetaDrive and compare reproducible scenario results with the classical-control projects. Examine reward design and failures without assuming either method is universally better."
+      },
+      {
+        "id": "23845fe2-4ac2-477e-a56a-89ed6a21367c",
+        "before_description": "MPC: optimise over a horizon while respecting the steering and acceleration limits the vehicle actually has. PID reacts and LQR is optimal but blind to constraints — this is the controller that sees ahead, and it is the most expensive to run.",
+        "description": "Explore trajectory tracking with MPC. Identify the prediction model, cost, encoded constraints and solver behavior, then test tracking and constraint violations under declared conditions."
+      },
+      {
+        "id": "561a6a5d-e458-409b-878d-1a3e3d336fe7",
+        "before_description": "The same optimal control, now steering a car in its lane. Same maths as the last lesson, real consequences.",
+        "description": "Apply LQR to a lane-keeping model. Examine state errors, speed assumptions, cost weights and steering limits when evaluating the simulated controller."
+      },
+      {
+        "id": "51ceb9f5-eb49-4690-86d1-79021921a7a1",
+        "before_description": "The language production ADAS ships in, plus the build and test toolchain around it. Python is where you prototype; this is where it goes to run in a car.",
+        "description": "Practise modern C++ with the associated build and test tools. Use the material to prepare for the ACC implementation and to examine ownership, testing and runtime requirements."
+      }
+    ],
+    "content_updates": [
+      {
+        "id": "dd881bf9-2e86-4bb5-b739-3cda732a9cd6",
+        "before_content_value": "# Welcome\n\nMost control courses teach PID, then LQR, then MPC as three unrelated topics. They are not three topics. They are one idea, arriving in stages, and each stage exists because the previous one ran out of road.\n\nThat is the argument this course makes.\n\n## What you will actually do\n\nEight projects. Adaptive Cruise Control with a tuned PID, in C++. Stability analysis of the thing you just built. An end-to-end planner feeding a controller. An RL agent that learns the policy instead of being given one. Electronic Stability Control in Simulink. LQR, twice — once on a clean plant, once steering a car in its lane. And finally MPC, tracking a trajectory while respecting the limits the vehicle actually has.\n\n## How it is arranged\n\n**Foundations** → Python, then modern C++ (production controllers are C++, and yours will be)\n**Longitudinal dynamics** → the straight-line problem, and PID\n**Planning and control** → where the trajectory comes from\n**Reinforcement learning** → the learned alternative, for contrast\n**Lateral dynamics** → the hard axis: tyres, yaw, state estimation, and LQR\n**Model Predictive Control** → control that sees ahead\n\nEach module opens with a \"What this module covers\" lesson explaining why it follows the last.\n\n## Who this is for\n\nEngineers who want to design controllers for real vehicles and be able to defend the design. You will need to be comfortable with linear algebra — LQR is not a black box, and the whole point is that you can see inside it.\n\n**Start with Module 1.**",
+        "content_value": "# Welcome\n\nThis course studies longitudinal and lateral vehicle models, feedback control, estimation and simulation projects using PID, LQR, MPC and reinforcement learning. These methods share important ideas, but have different objectives, assumptions and implementation tradeoffs.\n\nThe project sequence includes ACC, linear-control analysis, planning/control integration, PPO in MetaDrive, electronic stability control, LQR examples and MPC trajectory tracking. Reproduce the relevant examples and keep an explicit record of your model, units, sample interval, limits and evaluation conditions.\n\nBegin with the Python and C++ foundations you need, then study longitudinal dynamics before moving to planning, reinforcement learning, lateral models/estimation and MPC. You will need linear algebra for state-space models and optimal control; revisit it when the equations stop being interpretable.\n\nThe study guide on this page provides a common experiment and comparison rubric. Work in simulation and distinguish evidence obtained on a model from evidence about target hardware or a physical vehicle. There is no automatic progression in which one controller is always superior to the previous one."
+      },
+      {
+        "id": "4500e16d-b812-4c15-9ac3-d6230ac71c3a",
+        "before_content_value": "## Start here\n\nEverything so far you designed. This you train.\n\nLecture and slides, then:\n\n- **Project 4 — RL car control with PPO in MetaDrive** — an agent that learns to drive from reward alone\n\n**Why it matters:** put this beside the PID and planning work you have just done. One is derived, tunable and provable; the other is learned, opaque and often better. Knowing which to reach for — and being able to defend it — is the actual skill.\n\n**Next:** the hard axis. Steering.",
+        "content_value": "## Reinforcement learning as a comparison\n\nUse the lecture, slides and MetaDrive PPO project to investigate a policy learned through interaction. Its behavior depends on the observations, action space, rewards, training distribution and environment rules.\n\nCompare the policy with a declared baseline on reproducible held-out scenarios. Report tracking or task success, failures, constraint violations and execution requirements alongside reward. Learned control is not automatically better than a classical controller, and a classical design's guarantees apply only under its stated assumptions.\n\nThe next module introduces lateral vehicle models and estimation. Keep the distinction between a learned policy and the dynamics of the plant it acts on."
+      },
+      {
+        "id": "3b2ca858-4578-4d3c-9339-d90c01878e8e",
+        "before_content_value": "## Start here\n\nLateral dynamics, state estimation, and optimal control — the deepest module in the course.\n\nLecture and slides cover the bicycle model, tyre models, ABS/TCS/ESC, and state estimation with Kalman, EKF and particle filters. Then:\n\n- **Project 5 — Electronic Stability Control in Simulink**\n- **Project 6 — Altitude control with LQR**\n- **Project 7 — Lane Keep Assist with LQR**\n\n**Why it matters:** this is where PID runs out. LQR does not tune a gain, it *solves* for the optimal one — and the step from one to the other is the step from technician to engineer.\n\n**Next:** the final generalisation — control that plans ahead.",
+        "content_value": "## Lateral dynamics, estimation and optimal control\n\nThe lecture and slides introduce bicycle and tire models, ABS/TCS/ESC concepts, state estimation and optimal control. The associated projects cover ESC in Simulink, altitude control with LQR and lane keeping with LQR.\n\nFor each example, identify the model state, input and operating assumptions. LQR computes a feedback gain for a specified quadratic cost and linear model; choosing the states and weights remains an engineering design task. Examine actuator limits and estimated-state errors before interpreting a simulated result.\n\nThe [LQR reference](https://www.mathworks.com/help/control/ref/lti.lqr.html) explains the model, weights and resulting gain. Next, study MPC as another way to pose a prediction-and-control problem, particularly when constraints need to be represented explicitly."
+      },
+      {
+        "id": "4acc9c99-2da2-4ae9-a89f-8dbb7325c4cf",
+        "before_content_value": "## Start here\n\nThe end of the line: **Model Predictive Control**.\n\n- **MPC intro** and the project explanation video\n- **Project 8 — Trajectory tracking with MPC** — clone it, run it locally\n\n**Why it matters:** PID reacts. LQR is optimal, but only for an unconstrained linear system with no view of the future. MPC optimises over a horizon *and* respects constraints — the steering limits, the acceleration limits, the road edge. It is the most capable controller here and the most expensive to run, and knowing that trade-off is the point.\n\n**You have finished.** PID → LQR → MPC, as one framework rather than three disconnected topics — exactly as promised.",
+        "content_value": "## Model Predictive Control for trajectory tracking\n\nStart with the MPC introduction and project explanation, then run the trajectory-tracking repository where the required dependencies are available.\n\nIdentify the prediction model, horizon, reference, cost weights and constraints implemented in the example. MPC repeatedly solves a finite-horizon problem and applies the next control action; the [MPC reference](https://www.mathworks.com/help/mpc/ref/mpc.html) describes this structure. Distinguish hard constraints from penalized soft constraints and check solver outcomes.\n\nLQR also optimizes future cost, with finite- and infinite-horizon formulations. Its usual unconstrained formulation does not directly impose hard input limits. MPC is useful when a suitable formulation needs constraints and prediction, but its feasibility, computation and tracking performance must be evaluated for the actual design.\n\nComplete the study-guide comparison and report both successful cases and limits."
+      },
+      {
+        "id": "225b6592-4e1a-4c64-9dbc-332e2e7ec9f2",
+        "before_content_value": "# What you have built\n\n- **Adaptive Cruise Control** with a tuned PID, as a Gradio app and in C++\n- **Stability analysis** of that controller — poles, margins, and why the tuning held\n- **An end-to-end planner and controller**, closing the loop\n- **A PPO agent** that learned the policy rather than being handed one\n- **Electronic Stability Control** in Simulink\n- **LQR**, on a clean plant and then on Lane Keep Assist\n- **MPC** tracking a trajectory under real actuator constraints\n\n## The thing you actually learned\n\nPID reacts. LQR is optimal — but only for an unconstrained linear system with no view of the future. MPC optimises over a horizon *and* respects constraints, and it costs you compute for the privilege.\n\nKnowing which one a problem deserves, and being able to say why, is the skill. It is also, almost always, the interview question.\n\n## What to do next\n\n**Push the C++.** A controller you can only demonstrate in a notebook is a controller nobody will let near a vehicle. The ACC project is in C++ for a reason — build on that.\n\n**Get your hands on a real plant.** Simulation is honest about the maths and silent about everything else: sensor noise, actuator lag, the tyre that is not the tyre in your model.\n\n## Where to go from here\n\n**Advanced Driver Assistance Systems (ADAS): Engineering & Development** is where these controllers become features. You can design an LQR lane-keeper; ADAS teaches you to write its requirements, argue its safety case under ISO 26262, validate it with MIL/SIL testing, and generate the embedded code. That is the path from control engineer to ADAS engineer.\n\n**AI Bootcamp for Autonomous Driving** is the other road — if the RL module made you want to know how the learned systems actually work, rather than treating them as the opposition.\n\nCongratulations. PID → LQR → MPC, as one framework. Exactly as promised.",
+        "content_value": "# Review your controller evidence\n\nThe projects provide opportunities to study ACC, stability analysis, planning/control integration, PPO, ESC, LQR and MPC. Mark an exercise complete when you can reproduce its behavior, explain its assumptions and identify at least one condition under which its conclusions may fail.\n\nA useful portfolio contains the plant model and units, controller parameters, test scenarios, measured outputs and a failure analysis. Compare methods on the same engineering requirement rather than assuming that a newer or more complex algorithm is better.\n\nIf you extend the C++ work, measure the relevant runtime properties and test its interfaces. If you investigate a physical plant, use an appropriately supervised laboratory setup and an explicit test plan; simulation can represent noise and lag when they are modeled, but cannot supply evidence about effects it omits.\n\nThe ADAS course adds practice with requirements and a simulated feature-development workflow. The AI Bootcamp expands the machine-learning material. Choose the next topic from a specific limitation in your current evidence, and state that limitation in your project README."
+      }
+    ],
+    "question_updates": [],
+    "quizzes": [
+      {
+        "capsule_id": "3371eeb7-1255-4125-883a-62bf3c8a2041",
+        "title": "Engineering check: controller assumptions and constraints",
+        "questions": [
+          {
+            "question_type": "mcq",
+            "question_text": "Which statement correctly distinguishes standard unconstrained LQR from a constrained MPC formulation?",
+            "options": {
+              "a": "LQR cannot optimize future cost.",
+              "b": "MPC guarantees feasibility for every possible initial state.",
+              "c": "LQR optimizes a quadratic cost under its model, while MPC can explicitly include the chosen input and state constraints.",
+              "d": "MPC always uses less computation than LQR."
+            },
+            "correct_answer": "c",
+            "explanation": "LQR can consider finite or infinite future cost. Standard unconstrained LQR does not directly enforce hard bounds; an MPC formulation can include them, but its feasibility still needs to be checked.",
+            "points": 1
+          },
+          {
+            "question_type": "mcq",
+            "question_text": "A PI speed controller repeatedly requests acceleration above the actuator limit. Why can recovery be slow after the speed reference drops?",
+            "options": {
+              "a": "Its integral can keep accumulating error while the actuator is saturated.",
+              "b": "Clipping the command automatically clears the integral.",
+              "c": "Saturation removes all plant dynamics.",
+              "d": "Integral action measures the target speed directly."
+            },
+            "correct_answer": "a",
+            "explanation": "Integrator windup stores a large contribution even when the requested command cannot be applied. Conditional integration or back-calculation can help, depending on the actuator arrangement.",
+            "points": 1
+          },
+          {
+            "question_type": "mcq",
+            "question_text": "An MPC solver reports that the chosen hard constraints cannot be satisfied from the current state. What should the implementation do?",
+            "options": {
+              "a": "Assume the last optimizer iterate obeys all constraints.",
+              "b": "Silently remove the bounds without recording the change.",
+              "c": "Increase the horizon until a result is returned, regardless of the control deadline.",
+              "d": "Apply the specified solver-failure policy and record the condition for investigation."
+            },
+            "correct_answer": "d",
+            "explanation": "An infeasible or late optimization does not provide a valid command merely because the controller is called MPC. The implementation needs a defined response and tests for that response.",
+            "points": 1
+          },
+          {
+            "question_type": "mcq",
+            "question_text": "In a fixed-curvature kinematic approximation, lateral acceleration is a_y = v² × curvature. What happens when speed doubles?",
+            "options": {
+              "a": "It doubles.",
+              "b": "It becomes four times as large.",
+              "c": "It is unchanged.",
+              "d": "It becomes half as large."
+            },
+            "correct_answer": "b",
+            "explanation": "With curvature fixed, acceleration depends on speed squared: (2v)²=4v². This approximation does not account for tire-force saturation or establish high-speed feasibility.",
+            "points": 1
+          }
+        ]
+      }
+    ]
+  }
+]

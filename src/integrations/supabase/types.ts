@@ -197,6 +197,9 @@ export type Database = {
       }
       enrollments: {
         Row: {
+          access_source: 'payment' | 'sponsorship'
+          sponsorship_redemption_id: string | null
+          sponsorship_prior_checkout: Json | null
           amount_paid: number | null
           auto_approved: boolean
           billing_state: string | null
@@ -218,6 +221,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          access_source?: 'payment' | 'sponsorship'
+          sponsorship_redemption_id?: string | null
+          sponsorship_prior_checkout?: Json | null
           amount_paid?: number | null
           auto_approved?: boolean
           billing_state?: string | null
@@ -239,6 +245,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          access_source?: 'payment' | 'sponsorship'
+          sponsorship_redemption_id?: string | null
+          sponsorship_prior_checkout?: Json | null
           amount_paid?: number | null
           auto_approved?: boolean
           billing_state?: string | null

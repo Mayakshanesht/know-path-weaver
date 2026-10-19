@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useInvoiceDownload } from '@/hooks/useInvoiceDownload';
 import { countryName } from '@/lib/countries';
 import { Download, FileText, Clock, Loader2 } from 'lucide-react';
+import SponsorshipPaymentReviews from '@/components/admin/SponsorshipPaymentReviews';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -35,6 +36,7 @@ export default function InvoicesManager() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<string>('all');
+  const [documentType, setDocumentType] = useState('all');
   const { toast } = useToast();
   const { download, downloadingId } = useInvoiceDownload();
 
@@ -43,16 +45,22 @@ export default function InvoicesManager() {
   }, []);
 
   const fetchInvoices = async () => {
-    const { data, error } = await supabase
-      .from('invoices')
-      .select('*')
-      .order('issued_at', { ascending: false });
-
-    if (error) {
-      toast({ title: 'Could not load invoices', description: error.message, variant: 'destructive' });
-    } else {
-      setInvoices((data ?? []) as Invoice[]);
+    // A team programme can produce several thousand course receipts. Supabase
+    // caps each response, so fetch every page before calculating totals/exports.
+    const all: Invoice[] = [];
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await supabase.from('invoices').select('*')
+        .order('issued_at', { ascending: false }).order('id')
+        .range(offset, offset + 499);
+      if (error) {
+        toast({ title: 'Could not load invoices', description: error.message, variant: 'destructive' });
+        setLoading(false);
+        return;
+      }
+      all.push(...(data ?? []) as Invoice[]);
+      if (!data || data.length < 500) break;
     }
+    setInvoices(all);
     setLoading(false);
   };
 
@@ -62,14 +70,16 @@ export default function InvoicesManager() {
   }, [invoices]);
 
   const visible = useMemo(
-    () => (period === 'all' ? invoices : invoices.filter((i) => monthKey(i) === period)),
-    [invoices, period]
+    () => invoices.filter((i) => (period === 'all' || monthKey(i) === period)
+      && (documentType === 'all' || (i.document_type ?? 'tax_invoice') === documentType)),
+    [invoices, period, documentType]
   );
 
   // Totals must stay split by currency: adding INR to EUR would be meaningless.
   const totals = useMemo(() => {
     const acc: Record<string, { count: number; amount: number }> = {};
     for (const invoice of visible) {
+      if (invoice.document_type === 'sponsorship_receipt') continue;
       const key = `${invoice.region}|${invoice.currency}`;
       acc[key] ??= { count: 0, amount: 0 };
       acc[key].count += 1;
@@ -90,6 +100,7 @@ export default function InvoicesManager() {
    * region, and it cannot be recovered from the data.
    */
   const setRegion = async (invoice: Invoice, region: 'india' | 'international') => {
+    if (invoice.document_type === 'sponsorship_receipt' || invoice.coupon_code) return;
     if (region === invoice.region) return;
 
     const { data: course } = await supabase
@@ -126,6 +137,7 @@ export default function InvoicesManager() {
     const header = [
       'invoice_number', 'issued_at', 'buyer_name', 'buyer_email',
       'course', 'country', 'region', 'currency', 'amount',
+      'document_type', 'list_price', 'discount_percent', 'discount_amount', 'coupon_code', 'campaign', 'team',
     ];
     const rows = visible.map((i) => [
       i.invoice_number,
@@ -137,9 +149,18 @@ export default function InvoicesManager() {
       i.region,
       i.currency,
       Number(i.amount).toFixed(2),
+      i.document_type ?? 'tax_invoice',
+      i.list_price == null ? '' : Number(i.list_price).toFixed(2),
+      i.discount_percent == null ? '' : String(i.discount_percent),
+      i.discount_amount == null ? '' : Number(i.discount_amount).toFixed(2),
+      i.coupon_code ?? '', i.sponsorship_campaign ?? '', i.team_name ?? '',
     ]);
 
-    const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    const escape = (v: string) => {
+      const value = String(v);
+      const safe = /^[\s]*[=+@\-]/.test(value) ? `'${value}` : value;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
     const csv = [header, ...rows].map((r) => r.map(escape).join(',')).join('\n');
 
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -162,8 +183,17 @@ export default function InvoicesManager() {
 
   return (
     <div className="space-y-6">
+      <SponsorshipPaymentReviews />
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Select value={documentType} onValueChange={setDocumentType}>
+            <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All documents</SelectItem>
+              <SelectItem value="tax_invoice">Paid invoices</SelectItem>
+              <SelectItem value="sponsorship_receipt">Sponsorship receipts</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-56">
               <SelectValue />
@@ -181,7 +211,7 @@ export default function InvoicesManager() {
             </SelectContent>
           </Select>
           <span className="text-sm text-muted-foreground">
-            {visible.length} invoice{visible.length === 1 ? '' : 's'}
+            {visible.length} document{visible.length === 1 ? '' : 's'}
           </span>
         </div>
 
@@ -191,7 +221,7 @@ export default function InvoicesManager() {
         </Button>
       </div>
 
-      {/* Tax summary, split by region and currency */}
+      <p className="text-sm text-muted-foreground">Revenue totals include paid invoices. Sponsorship receipts record a 100% discount and zero collection, with a separate KGS number.</p>
       {Object.keys(totals).length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2">
           {Object.entries(totals).map(([key, { count, amount }]) => {
@@ -221,7 +251,7 @@ export default function InvoicesManager() {
             <FileText className="mb-3 h-10 w-10 text-muted-foreground" />
             <p className="font-medium">No invoices yet</p>
             <p className="text-sm text-muted-foreground">
-              An invoice is issued automatically when you approve an enrollment.
+              Paid invoices follow payment confirmation. Sponsorship receipts follow code redemption.
             </p>
           </CardContent>
         </Card>
@@ -238,15 +268,23 @@ export default function InvoicesManager() {
                     <Badge variant={invoice.region === 'india' ? 'secondary' : 'outline'}>
                       {countryName(invoice.billing_country)}
                     </Badge>
+                    {invoice.document_type === 'sponsorship_receipt' && <Badge variant="outline">Sponsored · 100% discount</Badge>}
+                    {invoice.document_type !== 'sponsorship_receipt' && invoice.coupon_code && <Badge variant="outline">Coupon · {Number(invoice.discount_percent)}% discount</Badge>}
                   </div>
                   <p className="mt-1 truncate text-sm text-muted-foreground">
                     {invoice.buyer_name ?? invoice.buyer_email ?? 'Unknown'} — {invoice.course_title}
                   </p>
+                  {invoice.coupon_code && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {invoice.sponsorship_campaign} {invoice.team_name ? `· ${invoice.team_name}` : ''} · {invoice.coupon_code}
+                    </p>
+                  )}
                 </div>
 
                 {/* Region drives price and currency, and the older enrollments have
                     none, so it has to be correctable. */}
                 <Select
+                  disabled={invoice.document_type === 'sponsorship_receipt' || !!invoice.coupon_code}
                   value={invoice.region}
                   onValueChange={(v) => setRegion(invoice, v as 'india' | 'international')}
                 >

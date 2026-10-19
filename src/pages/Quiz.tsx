@@ -59,9 +59,11 @@ export default function QuizPage() {
     if (quizError) {
       toast({
         title: 'Error',
-        description: 'Failed to load quiz.',
+        description: 'This quiz is unavailable. Confirm your course access and try again.',
         variant: 'destructive',
       });
+      setLoading(false);
+      navigate('/dashboard');
       return;
     }
 

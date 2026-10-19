@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { supabaseAdmin, supabaseAsCaller } from './_lib/groq.js';
+import { recordSponsorshipPaymentReview, SponsorshipPaymentReviewError } from './_lib/sponsorship-payment.js';
+import { assertCapturedCouponPayment, assertCapturedGatewayPayment, assertCouponOrder, completeCouponPayment, CouponCheckoutError, loadCouponCheckout, type CouponCheckout, type GatewayPayment } from './_lib/coupon-checkout.js';
 
 /**
  * Verifies a Razorpay checkout signature and enrolls the buyer.
@@ -49,11 +51,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   });
   const order = await r.json();
   if (!r.ok) return res.status(502).json({ error: 'could not load order' });
+  if (order.id !== razorpay_order_id) return res.status(400).json({ error: 'gateway order mismatch' });
   if (order?.notes?.lms_user_id !== userData.user.id) {
     return res.status(403).json({ error: 'order belongs to a different account' });
   }
   const courseId = order?.notes?.course_id;
   if (!courseId) return res.status(400).json({ error: 'order has no course' });
+
+  const db = supabaseAdmin();
+  let actualAmount = typeof order.amount === 'number' && Number.isSafeInteger(order.amount) && order.amount > 0 ? order.amount / 100 : null;
+  let couponCheckout: CouponCheckout | null = null;
+  let couponPayment: GatewayPayment | null = null;
+  try {
+    // Every enrollment, including a regular full-price checkout, requires an
+    // actual captured gateway payment. A signature alone is not settlement.
+    const paymentResponse = await fetch(`${RZP}/payments/${encodeURIComponent(razorpay_payment_id)}`, { headers: { Authorization: auth } });
+    if (!paymentResponse.ok) throw new CouponCheckoutError('Could not load the actual gateway payment. Please retry verification.', 502);
+    const payment = await paymentResponse.json() as GatewayPayment;
+    assertCapturedGatewayPayment(payment, order, razorpay_payment_id);
+    actualAmount = payment.amount / 100;
+    if (order.notes?.coupon_checkout_id) {
+      couponCheckout = await loadCouponCheckout(db, order.notes.coupon_checkout_id, userData.user.id, courseId);
+      if (!couponCheckout.gatewayOrderId) throw new CouponCheckoutError('The coupon checkout has no bound gateway order.', 409);
+      assertCouponOrder(order, couponCheckout, userData.user.id);
+      assertCapturedCouponPayment(payment, order, couponCheckout, razorpay_payment_id);
+      couponPayment = payment;
+    }
+  } catch (error) {
+    return res.status(error instanceof CouponCheckoutError ? error.status : 502)
+      .json({ error: error instanceof Error ? error.message : 'Could not verify the coupon payment.' });
+  }
+  const recordReview = () => recordSponsorshipPaymentReview(db, {
+    userId: userData.user.id,
+    courseId,
+    paymentReference: razorpay_payment_id,
+    amount: actualAmount,
+    currency: order.currency ?? 'INR',
+    source: 'razorpay-verify',
+  });
+  const respondWithReview = (reviewId: string) => res.status(200).json({
+    verified: true, enrolled: true, paymentReviewRequired: true, reviewId,
+  });
 
   const now = new Date().toISOString();
   const base = {
@@ -61,30 +99,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     course_id: courseId,
     status: 'approved' as const,
     payment_confirmed: true,
+    auto_approved: false,
     payment_confirmed_at: now,
     approved_at: now,
     payment_reference: razorpay_payment_id,
-    amount_paid: (order.amount ?? 0) / 100,
+    amount_paid: actualAmount ?? 0,
     currency: order.currency ?? 'INR',
     admin_notes: 'Razorpay gateway payment (auto-approved)',
   };
-  const db = supabaseAdmin();
-  let { error: upsertErr } = await db.from('enrollments').upsert(
-    {
-      ...base,
-      billing_country: order.notes?.billing_country || null,
-      billing_region: order.currency === 'INR' ? 'india' : 'international',
-      billing_state: order.notes?.billing_state || null,
-    },
-    { onConflict: 'user_id,course_id' },
-  );
-  if (upsertErr?.code === 'PGRST204') {
-    // invoicing migration not applied on this database — enroll anyway
-    ({ error: upsertErr } = await db
-      .from('enrollments')
-      .upsert(base, { onConflict: 'user_id,course_id' }));
+  try {
+    if (couponCheckout) {
+      // Only this service RPC may complete a discounted purchase: it rechecks
+      // the bound order and payment and creates the immutable discount invoice.
+      const completion = await completeCouponPayment(db, couponCheckout, userData.user.id, couponPayment!);
+      if (completion.reviewId) return respondWithReview(completion.reviewId);
+    } else {
+      let reviewId = await recordReview();
+      if (reviewId) return respondWithReview(reviewId);
+      let { error: upsertErr } = await db.from('enrollments').upsert(
+        {
+          ...base,
+          billing_country: order.notes?.billing_country || null,
+          billing_region: order.currency === 'INR' ? 'india' : 'international',
+          billing_state: order.notes?.billing_state || null,
+        },
+        { onConflict: 'user_id,course_id' },
+      );
+      if (upsertErr) {
+        reviewId = await recordReview();
+        if (reviewId) return respondWithReview(reviewId);
+      }
+      if (upsertErr?.code === 'PGRST204') {
+        // Retain support for the earlier invoicing schema on regular paid accounts.
+        ({ error: upsertErr } = await db
+          .from('enrollments')
+          .upsert(base, { onConflict: 'user_id,course_id' }));
+        if (upsertErr) {
+          reviewId = await recordReview();
+          if (reviewId) return respondWithReview(reviewId);
+        }
+      }
+      if (upsertErr) return res.status(500).json({ error: upsertErr.message });
+    }
+  } catch (error) {
+    return res.status(error instanceof SponsorshipPaymentReviewError ? error.status : 500)
+      .json({ error: error instanceof Error ? error.message : 'Could not reconcile this payment. Please contact KnowGraph.' });
   }
-  if (upsertErr) return res.status(500).json({ error: upsertErr.message });
 
   // Courses that also live in the Knowgraph app unlock there too — keyed by
   // the buyer's email, applied instantly or parked until they sign in.

@@ -83,6 +83,9 @@ export default function Navbar() {
                     <LayoutDashboard className="w-4 h-4 mr-2" />
                     Classroom
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/sponsored-access')}>
+                    Redeem access code
+                  </DropdownMenuItem>
                   {authUser.isAdmin && (
                     <DropdownMenuItem onClick={() => navigate('/admin')}>
                       <Settings className="w-4 h-4 mr-2" />
@@ -164,6 +167,9 @@ export default function Navbar() {
                     <Button variant="outline" onClick={handleSignOut}>
                       <LogOut className="w-4 h-4 mr-2" />
                       Sign out
+                    </Button>
+                    <Button variant="outline" asChild>
+                      <Link to="/sponsored-access" onClick={() => setMobileMenuOpen(false)}>Redeem access code</Link>
                     </Button>
                   </div>
                 ) : (

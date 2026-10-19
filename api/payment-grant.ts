@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { supabaseAdmin } from './_lib/groq.js';
+import { recordSponsorshipPaymentReview, SponsorshipPaymentReviewError } from './_lib/sponsorship-payment.js';
 
 /**
  * Authoritative enrollment grant from the Razorpay payment chain.
@@ -156,28 +157,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       if (error) break;
       userId =
-        data.users.find((u) => u.email?.toLowerCase() === email)?.id ?? null;
+        data.users.find((u: { id: string; email?: string }) => u.email?.toLowerCase() === email)?.id ?? null;
       if (data.users.length < 1000) break;
     }
   }
   if (!userId) return res.status(500).json({ error: 'could not resolve user' });
 
-  const { error: upsertErr } = await db.from('enrollments').upsert(
-    {
-      user_id: userId,
-      course_id: course.id,
-      status: 'approved',
-      payment_confirmed: true,
-      payment_confirmed_at: new Date().toISOString(),
-      approved_at: new Date().toISOString(),
-      payment_reference: body.paymentId ?? 'razorpay',
-      admin_notes: `Razorpay gateway payment${
-        body.amountCents ? ` — ₹${(body.amountCents / 100).toLocaleString('en-IN')}` : ''
-      } (auto-granted)`,
-    },
-    { onConflict: 'user_id,course_id' },
-  );
-  if (upsertErr) return res.status(500).json({ error: upsertErr.message });
+  const actualAmount = typeof body.amountCents === 'number' && Number.isSafeInteger(body.amountCents) && body.amountCents > 0 ? body.amountCents / 100 : null;
+  const recordReview = () => recordSponsorshipPaymentReview(db, {
+    userId,
+    courseId: course.id,
+    paymentReference: body.paymentId || `marketing:${createHash('sha256').update(payload).digest('hex')}`,
+    amount: actualAmount,
+    currency: 'INR',
+    source: 'payment-grant',
+  });
+  const respondWithReview = (reviewId: string) => res.status(200).json({
+    ok: true, userId, courseId: course.id, paymentReviewRequired: true, reviewId,
+  });
+
+  try {
+    let reviewId = await recordReview();
+    if (reviewId) return respondWithReview(reviewId);
+    const { error: upsertErr } = await db.from('enrollments').upsert(
+      {
+        user_id: userId,
+        course_id: course.id,
+        status: 'approved',
+        payment_confirmed: true,
+        auto_approved: false,
+        payment_confirmed_at: new Date().toISOString(),
+        approved_at: new Date().toISOString(),
+        payment_reference: body.paymentId ?? 'razorpay',
+        ...(actualAmount !== null ? { amount_paid: actualAmount } : {}),
+        currency: 'INR',
+        admin_notes: `Razorpay gateway payment${
+          actualAmount !== null ? ` — ₹${actualAmount.toLocaleString('en-IN')}` : ''
+        } (auto-granted)`,
+      },
+      { onConflict: 'user_id,course_id' },
+    );
+    if (upsertErr) {
+      reviewId = await recordReview();
+      if (reviewId) return respondWithReview(reviewId);
+      return res.status(500).json({ error: upsertErr.message });
+    }
+  } catch (error) {
+    return res.status(error instanceof SponsorshipPaymentReviewError ? error.status : 500)
+      .json({ error: error instanceof Error ? error.message : 'Could not reconcile this payment. Please contact KnowGraph.' });
+  }
 
   return res.status(200).json({ ok: true, userId, courseId: course.id });
 }

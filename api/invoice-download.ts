@@ -33,7 +33,7 @@ const SELLER = {
   taxId: process.env.INVOICE_SELLER_TAX_ID ?? '',
 };
 
-interface Invoice {
+export interface Invoice {
   id: string;
   invoice_number: string;
   amount: number;
@@ -63,6 +63,13 @@ interface Invoice {
   cgst_amount: number | null;
   sgst_amount: number | null;
   igst_amount: number | null;
+  document_type?: 'tax_invoice' | 'sponsorship_receipt';
+  list_price?: number | null;
+  discount_amount?: number | null;
+  discount_percent?: number | null;
+  coupon_code?: string | null;
+  sponsorship_campaign?: string | null;
+  team_name?: string | null;
 }
 
 interface Seller {
@@ -157,7 +164,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-async function renderInvoice(invoice: Invoice, seller: Seller | null): Promise<Uint8Array> {
+export async function renderInvoice(invoice: Invoice, seller: Seller | null): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const page = doc.addPage([595, 842]); // A4
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -166,13 +173,20 @@ async function renderInvoice(invoice: Invoice, seller: Seller | null): Promise<U
   const { width } = page.getSize();
   const left = 50;
   const right = width - 50;
+  const sponsored = invoice.document_type === 'sponsorship_receipt';
+  // Standard PDF fonts cannot encode every Unicode character. Keep the original
+  // values in the database and make an unsupported glyph printable in the PDF.
+  const characterSet = new Set(font.getCharacterSet());
+  const printable = (value: string) => Array.from(value)
+    .map((character) => characterSet.has(character.codePointAt(0)!) ? character : '?').join('');
 
   const text = (v: string, x: number, y: number, size = 10, b = false, color = BRAND) =>
-    page.drawText(v, { x, y, size, font: b ? bold : font, color });
+    page.drawText(printable(v), { x, y, size, font: b ? bold : font, color });
 
   const rightText = (v: string, y: number, size = 10, b = false, color = BRAND) => {
     const f = b ? bold : font;
-    page.drawText(v, { x: right - f.widthOfTextAtSize(v, size), y, size, font: f, color });
+    const value = printable(v);
+    page.drawText(value, { x: right - f.widthOfTextAtSize(value, size), y, size, font: f, color });
   };
 
   page.drawRectangle({ x: 0, y: 762, width, height: 80, color: BRAND });
@@ -189,24 +203,26 @@ async function renderInvoice(invoice: Invoice, seller: Seller | null): Promise<U
     page.drawText('KnowGraph', { x: left, y: 795, size: 20, font: bold, color: rgb(1, 1, 1) });
   }
 
-  page.drawText('INVOICE', {
-    x: right - bold.widthOfTextAtSize('INVOICE', 20),
+  const documentTitle = sponsored ? 'SPONSORED ACCESS RECEIPT' : 'INVOICE';
+  const titleSize = sponsored ? 12 : 20;
+  page.drawText(documentTitle, {
+    x: right - bold.widthOfTextAtSize(documentTitle, titleSize),
     y: 795,
-    size: 20,
+    size: titleSize,
     font: bold,
     color: rgb(1, 1, 1),
   });
 
   let y = 720;
-  text('Billed to', left, y, 9, true, MUTED);
-  rightText('Invoice number', y, 9, true, MUTED);
+  text(sponsored ? 'Access granted to' : 'Billed to', left, y, 9, true, MUTED);
+  rightText(sponsored ? 'Receipt number' : 'Invoice number', y, 9, true, MUTED);
 
   y -= 16;
-  text(invoice.buyer_name || 'Learner', left, y, 12, true);
+  text((invoice.buyer_name || 'Learner').slice(0, 45), left, y, 12, true);
   rightText(invoice.invoice_number, y, 12, true);
 
   y -= 15;
-  text(invoice.buyer_email || '', left, y, 10, false, MUTED);
+  text((invoice.buyer_email || '').slice(0, 58), left, y, 10, false, MUTED);
   rightText(
     new Date(invoice.issued_at).toLocaleDateString('en-GB', {
       day: '2-digit',
@@ -257,6 +273,44 @@ async function renderInvoice(invoice: Invoice, seller: Seller | null): Promise<U
     text(`Place of supply: ${invoice.place_of_supply}`, left, y, 9, false, MUTED);
   }
 
+  if (sponsored) {
+    // Sponsorship is recorded separately from tax invoices and collected revenue.
+    // These are immutable price/discount snapshots, never the current course price.
+    y -= 35;
+    for (const line of wrap(invoice.course_title, 65).slice(0, 3)) {
+      text(line, left, y, 11, true);
+      y -= 15;
+    }
+    for (const line of wrap(`Programme: ${invoice.sponsorship_campaign || 'Sponsored learning'}`, 85).slice(0, 2)) {
+      text(line, left, y, 9, false, MUTED);
+      y -= 13;
+    }
+    if (invoice.team_name) {
+      for (const line of wrap(`Team: ${invoice.team_name}`, 85).slice(0, 2)) {
+        text(line, left, y, 9, false, MUTED);
+        y -= 13;
+      }
+    }
+    text(`Coupon: ${invoice.coupon_code || ''}`, left, y, 9, false, MUTED);
+    y -= 30;
+    text('Course list price', left, y, 10);
+    rightText(money(Number(invoice.list_price ?? 0), invoice.currency), y, 10);
+    y -= 22;
+    text('Sponsorship discount (100%)', left, y, 10);
+    rightText(`-${money(Number(invoice.discount_amount ?? 0), invoice.currency)}`, y, 10);
+    y -= 24;
+    page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: RULE });
+    y -= 26;
+    text('Amount due / collected', left, y, 12, true);
+    rightText(money(Number(invoice.amount), invoice.currency), y, 14, true);
+    y -= 28;
+    text('Access is fully sponsored. No payment is required or recorded.', left, y, 9, false, MUTED);
+    page.drawLine({ start: { x: left, y: 110 }, end: { x: right, y: 110 }, thickness: 1, color: RULE });
+    text('Sponsorship access record. This document is not a tax invoice.', left, 92, 9, false, MUTED);
+    text('Keep this receipt for your records.', left, 78, 9, false, MUTED);
+    return await doc.save();
+  }
+
   y -= 46;
   page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: RULE });
   y -= 18;
@@ -276,6 +330,25 @@ async function renderInvoice(invoice: Invoice, seller: Seller | null): Promise<U
   rightText(money(base, invoice.currency), y, 11);
   y -= 14;
   text('Course enrollment — lifetime access', left, y, 9, false, MUTED);
+
+  if (Number(invoice.discount_amount ?? 0) > 0) {
+    y -= 24;
+    text('Listed course price', left, y, 10, false, MUTED);
+    rightText(money(Number(invoice.list_price), invoice.currency), y, 10, false, MUTED);
+    y -= 16;
+    text(`Coupon discount${invoice.discount_percent != null ? ` (${Number(invoice.discount_percent)}%)` : ''}`, left, y, 10, false, MUTED);
+    rightText(`-${money(Number(invoice.discount_amount), invoice.currency)}`, y, 10, false, MUTED);
+    y -= 16;
+    text(`Coupon: ${invoice.coupon_code || ''}`, left, y, 9, false, MUTED);
+    if (invoice.sponsorship_campaign) {
+      y -= 14;
+      text(wrap(`Programme: ${invoice.sponsorship_campaign}`, 85)[0], left, y, 9, false, MUTED);
+    }
+    if (invoice.team_name) {
+      y -= 14;
+      text(wrap(`Team: ${invoice.team_name}`, 85)[0], left, y, 9, false, MUTED);
+    }
+  }
 
   y -= 24;
   text(invoice.tax_label ?? 'Tax', left, y, 10);

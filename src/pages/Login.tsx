@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -8,12 +8,14 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
-import loginIllustration from '@/assets/login-illustration.svg';
+import { readSponsorCode, rememberSponsorCode, safeReturnPath } from '@/lib/auth-navigation';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [sponsorCode, setSponsorCode] = useState(readSponsorCode);
   const [needsVerification, setNeedsVerification] = useState(false);
   const [resending, setResending] = useState(false);
   // Non-null once we've confirmed this is an existing learner on the old project
@@ -23,19 +25,49 @@ export default function Login() {
   const [newPassword, setNewPassword] = useState('');
   const [migrating, setMigrating] = useState(false);
   const navigate = useNavigate();
-  const { signIn, resendVerification, checkLegacyAccount, migrateLegacyAccount } = useAuth();
+  const location = useLocation();
+  const { user, signIn, signInWithGoogle, resendVerification, checkLegacyAccount, migrateLegacyAccount } = useAuth();
+  const requestedFrom = location.state?.from;
+  const destination = safeReturnPath(typeof requestedFrom?.pathname === 'string'
+    ? `${requestedFrom.pathname}${typeof requestedFrom.search === 'string' ? requestedFrom.search : ''}`
+    : undefined);
+  const couponDestination = destination.startsWith('/courses/') ? destination : '/courses';
+  const afterSignIn = sponsorCode.trim() ? couponDestination : destination;
   const { toast } = useToast();
+
+  const handleGoogle = async (sponsored = false) => {
+    rememberSponsorCode(sponsorCode);
+    const returnTo = sponsored || sponsorCode.trim() ? couponDestination : destination;
+    if (user) {
+      navigate(returnTo);
+      return;
+    }
+    setGoogleLoading(true);
+    try {
+      const { error } = await signInWithGoogle(returnTo);
+      if (error) throw error;
+    } catch (error) {
+      toast({
+        title: 'Could not start Google sign-in',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    rememberSponsorCode(sponsorCode);
     setNeedsVerification(false);
 
     const { error } = await signIn(email, password);
 
     if (!error) {
       toast({ title: 'Welcome back!', description: "You've successfully logged in." });
-      navigate('/home', { replace: true });
+      navigate(afterSignIn, { replace: true });
       setIsLoading(false);
       return;
     }
@@ -105,13 +137,13 @@ export default function Login() {
         ? 'Signed in with your new password.'
         : 'Your account, courses and progress have moved across.',
     });
-    navigate('/home', { replace: true });
+    navigate(afterSignIn, { replace: true });
     setMigrating(false);
   };
 
   const handleResend = async () => {
     setResending(true);
-    const { error } = await resendVerification(email);
+    const { error } = await resendVerification(email, afterSignIn);
     toast({
       title: error ? 'Could not resend' : 'Verification email sent',
       description: error ? error.message : `Check the inbox for ${email}.`,
@@ -236,12 +268,36 @@ export default function Login() {
               Back
             </Link>
 
-            <Card className="bg-slate-950/90 border-white/10 shadow-none">
+            <Card className="bg-slate-950/90 border-white/10 text-slate-50 shadow-none">
               <CardHeader className="text-center">
                 <CardTitle className="text-3xl">Sign in</CardTitle>
-                <CardDescription>Access your course graph and continue learning.</CardDescription>
+                <CardDescription className="text-slate-300">Access your course graph and continue learning.</CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="mb-6 space-y-3">
+                  <Label htmlFor="sponsor-code">Sponsorship coupon <span className="font-normal text-slate-400">(optional)</span></Label>
+                  <Input
+                    id="sponsor-code"
+                    value={sponsorCode}
+                    onChange={(event) => setSponsorCode(event.target.value)}
+                    maxLength={128}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    placeholder="Enter the code shared with your team"
+                    className="bg-slate-950/90 text-slate-50"
+                    aria-describedby="sponsor-code-help"
+                  />
+                  <p id="sponsor-code-help" className="text-xs leading-relaxed text-slate-400">
+                    This code is saved for course checkout. Sign in, choose a course, apply the coupon, and review the discount and remaining total.
+                  </p>
+                  <Button type="button" className="w-full bg-white text-slate-950 hover:bg-slate-100" onClick={() => handleGoogle()} disabled={googleLoading}>
+                    {googleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <span className="mr-3 text-lg font-bold" aria-hidden="true">G</span>}
+                    {user ? 'Continue with your signed-in account' : 'Continue with Google'}
+                  </Button>
+                  {user && <p className="break-all text-center text-xs text-slate-400">Signed in as {user.email}</p>}
+                </div>
+                <div className="mb-6 flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-white/10" />Or sign in with email<span className="h-px flex-1 bg-white/10" /></div>
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
@@ -277,12 +333,12 @@ export default function Login() {
                     <Link to="/forgot-password" className="text-sm text-cyan-300 hover:text-cyan-100 transition-colors">
                       Forgot password?
                     </Link>
-                    <Link to="/signup" className="text-sm text-cyan-300 hover:text-cyan-100 transition-colors">
+                    <Link to="/signup" state={{ from: { pathname: afterSignIn } }} className="text-sm text-cyan-300 hover:text-cyan-100 transition-colors">
                       Create account
                     </Link>
                   </div>
 
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                  <Button type="submit" className="w-full bg-cyan-400 text-slate-950 hover:bg-cyan-300" disabled={isLoading}>
                     {isLoading ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -339,11 +395,29 @@ export default function Login() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
           >
-            <img src={loginIllustration} alt="Secure learning login illustration" className="w-full rounded-[1.75rem]" />
-            <div className="pointer-events-none absolute inset-x-6 top-6 h-1 rounded-full bg-gradient-to-r from-cyan-300/50 via-slate-100/30 to-violet-400/40" />
-            <div className="absolute bottom-6 left-6 rounded-full bg-slate-950/80 px-4 py-2 text-xs uppercase tracking-[0.24em] text-cyan-200/90">
-              Secure access
+            <div className="mb-6 inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold tracking-wide text-cyan-200">
+              KnowGraph × SAEINDIA 2027
             </div>
+            <h2 className="text-3xl font-semibold leading-tight sm:text-4xl">aBAJA teams, your learning starts here.</h2>
+            <p className="mt-4 leading-relaxed text-slate-300">
+              KnowGraph sponsors free access to all published courses for aBAJA team members and the aBAJA technical committee. No payment or card required.
+            </p>
+            <ol className="my-7 list-decimal space-y-4 pl-5 text-sm leading-relaxed text-slate-200 marker:font-semibold marker:text-cyan-300">
+              <li>Get your sponsorship code from your team captain or KnowGraph coordinator. Technical committee members receive a separate code.</li>
+              <li>Create your own account and verify your email, or continue with Google. Use this same account on the website and KnowGraph app.</li>
+              <li>Open a course page, apply your coupon, and check the 100% discount and ₹0 total. Confirm your full name and college or organization.</li>
+              <li>Select Complete free enrollment, then open your classroom or mobile app. Keep your code within your assigned team.</li>
+            </ol>
+            <Button type="button" size="lg" className="w-full bg-cyan-400 text-slate-950 hover:bg-cyan-300" onClick={() => handleGoogle(true)} disabled={googleLoading}>
+              {googleLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {user ? 'Choose a course to enroll' : 'Continue with Google for free access'}
+            </Button>
+            <p className="mt-5 text-xs leading-relaxed text-slate-400">
+              A verified account and your invitation roster control eligibility. Applying a coupon previews the discount; completing enrollment claims your seat. This browser remembers your sign-in; sign out after using a shared computer.
+            </p>
+            <p className="mt-4 text-xs text-slate-400">
+              Share this sign-in page: <a className="break-all text-cyan-300 hover:text-cyan-100" href="https://courses.knowgraphapp.com/login">courses.knowgraphapp.com/login</a>
+            </p>
           </motion.div>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
+import { hasCourseAccess } from '@/lib/course-access';
 import { useAuth } from '@/contexts/AuthContext';
 import { Course, Capsule, LearningPath, CapsuleContent, Progress, Quiz, QuizWithQuestions, CapsuleWithProgress, LearningPathWithCapsules as BaseLearningPathWithCapsules } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -139,7 +140,7 @@ export default function LearnCourse() {
       .eq('status', 'approved')
       .maybeSingle();
 
-    if (!enrollment) {
+    if (!authUser.isAdmin && !hasCourseAccess(enrollment)) {
       toast({
         title: 'Access Denied',
         description: 'You need to be enrolled in this course to access it.',

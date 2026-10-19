@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { BookOpen, ArrowRight, IndianRupee, Euro, Info, CreditCard, QrCode, Mail, Phone } from 'lucide-react';
 import paymentQR from '@/assets/payment_qr_code_cropped.jpeg?url';
 import CourseCover from '@/components/courses/CourseCover';
+import GoogleCourseSignIn from '@/components/courses/GoogleCourseSignIn';
 
 /** Course, plus the counts computed at fetch time from the nested rows. */
 interface CourseWithCounts extends Course {
@@ -89,6 +90,7 @@ export default function Courses() {
                   <p className="mt-4 max-w-2xl text-lg text-slate-300">
                     Browse curated learning paths with clear outcomes, capsule counts, and real project focus.
                   </p>
+                  <div className="mt-6 max-w-sm"><GoogleCourseSignIn returnTo="/courses" /></div>
                 </div>
 
                 <div className="rounded-[2rem] border border-white/10 bg-slate-950/90 p-6">

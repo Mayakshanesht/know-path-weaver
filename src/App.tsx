@@ -21,6 +21,7 @@ import MarketingCourseDetail from "./pages/MarketingCourseDetail";
 import Dashboard from "./pages/Dashboard";
 import LearnCourse from "./pages/LearnCourse";
 import AdminPanel from "./pages/AdminPanel";
+import SponsoredAccess from "./pages/SponsoredAccess";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="/courses/:courseId" element={<CourseDetail />} />
             <Route path="/course/:slug" element={<MarketingCourseDetail />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/sponsored-access" element={<ProtectedRoute><SponsoredAccess /></ProtectedRoute>} />
             <Route path="/learn/:courseId" element={<ProtectedRoute><LearnCourse /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminPanel /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />

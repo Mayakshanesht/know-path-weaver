@@ -114,16 +114,15 @@ export interface Enrollment {
   /**
    * ACCESS and MONEY are deliberately separate.
    *
-   * status='approved' means the learner can open the course. payment_confirmed means an
-   * admin has seen the money on the bank statement — and ONLY that issues the invoice.
-   *
-   * The receipt OCR can grant access, because a wrongly-granted course costs a course. It
-   * must never issue a GST invoice, because a tax document for a payment that never arrived
-   * is not something you can quietly take back.
+   * Approved access also requires verified payment or a protected sponsorship claim.
+   * payment_confirmed records gateway capture or explicit bank confirmation and issues
+   * the paid invoice. Receipt-image analysis is advisory and cannot grant access.
    */
   payment_confirmed: boolean;
   auto_approved: boolean;
   receipt_check: unknown | null;
+  access_source?: 'payment' | 'sponsorship';
+  sponsorship_redemption_id?: string | null;
 }
 
 export interface Progress {
@@ -241,6 +240,14 @@ export interface Invoice {
   storage_path: string | null;
   issued_at: string;
   created_at: string;
+  document_type?: 'tax_invoice' | 'sponsorship_receipt';
+  list_price?: number | null;
+  discount_amount?: number | null;
+  discount_percent?: number | null;
+  coupon_code?: string | null;
+  sponsorship_campaign?: string | null;
+  team_name?: string | null;
+  sponsorship_redemption_id?: string | null;
 }
 
 export interface ArticleSource {

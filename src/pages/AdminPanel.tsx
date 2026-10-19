@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BookOpen, Users, BarChart3, FileQuestion, Receipt, Megaphone, AlertCircle } from 'lucide-react';
+import { BookOpen, Users, BarChart3, FileQuestion, Receipt, Megaphone, AlertCircle, Ticket } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import MarketingManager from '@/components/admin/MarketingManager';
 import CoursesManager from '@/components/admin/CoursesManager';
@@ -11,6 +12,10 @@ import EnrollmentsManager from '@/components/admin/EnrollmentsManager';
 import ProgressViewer from '@/components/admin/ProgressViewer';
 import QuizzesManager from '@/components/admin/QuizzesManager';
 import InvoicesManager from '@/components/admin/InvoicesManager';
+import SponsorshipManager from '@/components/admin/SponsorshipManager';
+import { Button } from '@/components/ui/button';
+
+const ADMIN_TABS = new Set(['courses', 'enrollments', 'invoices', 'sponsorship', 'quizzes', 'marketing', 'progress']);
 
 export default function AdminPanel() {
   /*
@@ -21,6 +26,17 @@ export default function AdminPanel() {
     paying customer sitting locked out for a day.
   */
   const [pending, setPending] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const activeTab = requestedTab && ADMIN_TABS.has(requestedTab) ? requestedTab : pending > 0 ? 'enrollments' : 'courses';
+  const selectTab = (tab: string) => {
+    if (!ADMIN_TABS.has(tab)) return;
+    setSearchParams(previous => {
+      const next = new URLSearchParams(previous);
+      next.set('tab', tab);
+      return next;
+    }, { replace: true });
+  };
 
   useEffect(() => {
     const count = async () => {
@@ -44,10 +60,13 @@ export default function AdminPanel() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="mb-8"
+            className="mb-8 flex flex-wrap items-center justify-between gap-4"
           >
-            <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-            <p className="text-muted-foreground">Manage courses, enrollments, and view student progress</p>
+            <div><h1 className="text-3xl font-bold">Admin Dashboard</h1>
+              <p className="text-muted-foreground">Manage courses, enrollments, and view student progress</p></div>
+            <Button onClick={() => selectTab('sponsorship')} aria-label="Open sponsorship coupons">
+              <Ticket className="mr-2 h-4 w-4" />Coupons
+            </Button>
           </motion.div>
 
           {pending > 0 && (
@@ -69,8 +88,8 @@ export default function AdminPanel() {
             </motion.div>
           )}
 
-          <Tabs defaultValue={pending > 0 ? 'enrollments' : 'courses'} className="space-y-6">
-            <TabsList className="grid w-full max-w-3xl grid-cols-6">
+          <Tabs value={activeTab} onValueChange={selectTab} className="space-y-6">
+            <TabsList className="grid w-full max-w-4xl grid-cols-7">
               <TabsTrigger value="courses" className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4" />
                 <span className="hidden sm:inline">Courses</span>
@@ -87,6 +106,10 @@ export default function AdminPanel() {
               <TabsTrigger value="invoices" className="flex items-center gap-2">
                 <Receipt className="w-4 h-4" />
                 <span className="hidden sm:inline">Invoices</span>
+              </TabsTrigger>
+              <TabsTrigger value="sponsorship" className="flex items-center gap-2" aria-label="Sponsorship coupons">
+                <Ticket className="w-4 h-4" />
+                <span className="hidden sm:inline">Coupons</span>
               </TabsTrigger>
               <TabsTrigger value="quizzes" className="flex items-center gap-2">
                 <FileQuestion className="w-4 h-4" />
@@ -112,6 +135,9 @@ export default function AdminPanel() {
 
             <TabsContent value="invoices">
               <InvoicesManager />
+            </TabsContent>
+            <TabsContent value="sponsorship">
+              <SponsorshipManager />
             </TabsContent>
 
             <TabsContent value="quizzes">

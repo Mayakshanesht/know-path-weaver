@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
+import { hasCourseAccess } from '@/lib/course-access';
 import { useAuth } from '@/contexts/AuthContext';
 import { EnrollmentWithCourse, Invoice, Progress } from '@/types/database';
 import { downloadCertificate } from '@/lib/certificate';
@@ -51,6 +52,7 @@ export default function Dashboard() {
     const { data } = await supabase
       .from('invoices')
       .select('*')
+      .eq('user_id', authUser!.id)
       .order('issued_at', { ascending: false });
     setInvoices((data ?? []) as Invoice[]);
   };
@@ -74,7 +76,7 @@ export default function Dashboard() {
     // For approved enrollments, fetch progress
     const enrichedEnrollments = await Promise.all(
       (enrollmentsData || []).map(async (enrollment) => {
-        if (enrollment.status !== 'approved') {
+        if (!hasCourseAccess(enrollment)) {
           return {
             ...enrollment,
             totalCapsules: 0,
@@ -117,8 +119,8 @@ export default function Dashboard() {
     setLoading(false);
   };
 
-  const approvedEnrollments = enrollments.filter((e) => e.status === 'approved');
-  const pendingEnrollments = enrollments.filter((e) => e.status === 'pending');
+  const approvedEnrollments = enrollments.filter(hasCourseAccess);
+  const pendingEnrollments = enrollments.filter((e) => e.status === 'pending' || (e.status === 'approved' && !hasCourseAccess(e)));
   const rejectedEnrollments = enrollments.filter((e) => e.status === 'rejected');
 
   return (
@@ -184,7 +186,7 @@ export default function Dashboard() {
                 )}
                 {invoices.length > 0 && (
                   <TabsTrigger value="invoices">
-                    Invoices ({invoices.length})
+                    Invoices & receipts ({invoices.length})
                   </TabsTrigger>
                 )}
               </TabsList>
@@ -200,6 +202,12 @@ export default function Dashboard() {
                         <p className="truncate text-sm text-muted-foreground">
                           {invoice.course_title}
                         </p>
+                        {invoice.document_type === 'sponsorship_receipt' && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Sponsored · 100% discount · {invoice.sponsorship_campaign}
+                            {invoice.team_name ? ` · ${invoice.team_name}` : ''}
+                          </p>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="font-semibold">
@@ -217,14 +225,14 @@ export default function Dashboard() {
                         size="sm"
                         disabled={downloadingId === invoice.id}
                         onClick={() => download(invoice.id)}
-                        title="Download invoice (PDF)"
+                        title="Download invoice or sponsorship receipt (PDF)"
                       >
                         {downloadingId === invoice.id ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
                           <Download className="mr-2 h-4 w-4" />
                         )}
-                        Invoice
+                        {invoice.document_type === 'sponsorship_receipt' ? 'Receipt' : 'Invoice'}
                       </Button>
                     </CardContent>
                   </Card>
